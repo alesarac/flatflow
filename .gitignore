@@ -1,2 +1,41 @@
-# Piano di sviluppo (solo locale)
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing & Coverage
+/coverage
+
+# Next.js build output
+/.next/
+/out/
+
+# Production
+/build
+
+# Environment variables
+.env
+.env*.local
+.env.production
+.env.development
+
+# Debug / logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# OS files
+.DS_Store
+*.pem
+Thumbs.db
+
+# Piano di sviluppo (solo locale - non includere nel repository)
 /plan/
+
+# Temporary / test local databases
+/data/
+
+#Guida alla configurazione
+CONFIG.md
