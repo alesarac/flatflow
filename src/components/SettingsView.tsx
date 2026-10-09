@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Roommate } from "../lib/domain/types";
-import { Users, LogOut, Check, Smartphone, Sparkles } from "lucide-react";
+import { Users, LogOut, Check, Smartphone, AlertCircle, Loader2 } from "lucide-react";
 
 interface SettingsViewProps {
   roommates: Roommate[];
@@ -29,24 +29,40 @@ export function SettingsView({
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleNameChange = (id: number, newName: string) => {
     setNames((prev) => ({ ...prev, [id]: newName }));
     setSavedSuccess(false);
+    setSaveError(null);
   };
 
   const handleSaveNames = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSavedSuccess(false);
+    setSaveError(null);
 
     try {
+      let anyFailed = false;
       for (const r of roommates) {
         if (names[r.id] && names[r.id].trim() !== r.name) {
-          await onUpdateRoommateName(r.id, names[r.id].trim());
+          const ok = await onUpdateRoommateName(r.id, names[r.id].trim());
+          if (!ok) {
+            anyFailed = true;
+            break;
+          }
         }
       }
-      setSavedSuccess(true);
+
+      if (anyFailed) {
+        setSaveError("Errore durante il salvataggio dei nomi sul server. Riprova.");
+      } else {
+        setSavedSuccess(true);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Errore durante il salvataggio";
+      setSaveError(msg);
     } finally {
       setSaving(false);
     }
@@ -123,8 +139,15 @@ export function SettingsView({
 
         {savedSuccess && (
           <div className="flex items-center gap-2 p-2.5 text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-            <Check className="w-3.5 h-3.5 text-emerald-400" />
+            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span>Nomi aggiornati con successo!</span>
+          </div>
+        )}
+
+        {saveError && (
+          <div className="flex items-center gap-2 p-2.5 text-xs text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+            <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            <span>{saveError}</span>
           </div>
         )}
 
@@ -133,7 +156,14 @@ export function SettingsView({
           disabled={saving}
           className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          {saving ? "Salvataggio..." : "Salva modifiche nomi"}
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Salvataggio in corso...</span>
+            </>
+          ) : (
+            <span>Salva modifiche nomi</span>
+          )}
         </button>
       </form>
 

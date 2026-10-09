@@ -15,17 +15,18 @@ export const AREAS: Area[] = [
   { id: 2, name: "Ingresso e corridoio", iconName: "DoorOpen" },
 ];
 
-export const DEFAULT_ROOMMATES: Roommate[] = [
-  { id: 0, name: "Coinquilino 1" },
-  { id: 1, name: "Coinquilino 2" },
-  { id: 2, name: "Coinquilino 3" },
-];
+export const DEFAULT_ROOMMATES: readonly Roommate[] = Object.freeze([
+  Object.freeze({ id: 0, name: "Coinquilino 1" }),
+  Object.freeze({ id: 1, name: "Coinquilino 2" }),
+  Object.freeze({ id: 2, name: "Coinquilino 3" }),
+]);
 
 export interface CleaningTask {
   id: string;
   weekKey: string;
   areaId: number;
   assignedTo: number | null;
+  assignedToName: string | null; // Snapshot storico del nome dell'assegnatario
   declinedBy: number[];
   isCompleted: boolean;
   completedAt: string | null;

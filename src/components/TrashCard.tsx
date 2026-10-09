@@ -1,13 +1,15 @@
 "use client";
 
 import { Roommate, TrashTask } from "../lib/domain/types";
-import { Trash2, AlertCircle, CheckCircle2, Clock, Users } from "lucide-react";
+import { Trash2, AlertCircle, CheckCircle2, Loader2, Sparkles } from "lucide-react";
 
 interface TrashCardProps {
   openTask: TrashTask | null;
   trashQueue: number[];
   roommates: Roommate[];
   myRoommateId: number | null;
+  isAbsentThisWeek: boolean;
+  isSubmitting?: boolean;
   onReport: () => void;
   onDecline: (roommateId: number) => void;
   onComplete: (roommateId: number) => void;
@@ -19,12 +21,13 @@ export function TrashCard({
   trashQueue,
   roommates,
   myRoommateId,
+  isAbsentThisWeek,
+  isSubmitting = false,
   onReport,
   onDecline,
   onComplete,
   onClaim,
 }: TrashCardProps) {
-  // Find current assignee
   const assignedRoommate =
     openTask && openTask.assignedTo !== null
       ? roommates.find((r) => r.id === openTask.assignedTo)
@@ -33,7 +36,10 @@ export function TrashCard({
   const isAssignedToMe =
     openTask && myRoommateId !== null && openTask.assignedTo === myRoommateId;
 
-  // Next in line when trash is empty
+  const isUnassigned = openTask && openTask.assignedTo === null;
+  const canClaimOrComplete = isUnassigned && myRoommateId !== null && !isAbsentThisWeek;
+
+  // Prossimo in coda se la spazzatura è chiusa
   const nextInQueueId = trashQueue[0];
   const nextInQueue = roommates.find((r) => r.id === nextInQueueId);
 
@@ -51,7 +57,7 @@ export function TrashCard({
             className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
               openTask
                 ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
-                : "bg-slate-800/90 text-slate-400 border-slate-700/60"
+                : "bg-slate-850 text-slate-400 border-slate-700/60"
             }`}
           >
             <Trash2 className="w-5 h-5" />
@@ -96,40 +102,63 @@ export function TrashCard({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onComplete(myRoommateId ?? openTask.assignedTo ?? 0)}
-                className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-rose-600/30 transition-all flex items-center justify-center gap-2"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Ho buttato la spazzatura</span>
-              </button>
+            {isAssignedToMe ? (
+              // P1-02: Mostra i pulsanti SOLO all'assegnatario
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onComplete(myRoommateId)}
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-rose-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  <span>Ho buttato la spazzatura</span>
+                </button>
 
-              {isAssignedToMe && (
                 <button
                   onClick={() => onDecline(myRoommateId)}
-                  className="py-3 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 font-medium text-xs border border-slate-700 transition-all shrink-0"
+                  disabled={isSubmitting}
+                  className="py-3 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 font-medium text-xs border border-slate-700 transition-all shrink-0 disabled:opacity-50"
                 >
                   Non posso
                 </button>
-              )}
-            </div>
-
-            {openTask.assignedTo === null && onClaim && myRoommateId !== null && (
+              </div>
+            ) : canClaimOrComplete ? (
+              // Tutti indisponibili: un coinquilino presente può prenderla in carico
               <button
-                onClick={() => onClaim(myRoommateId)}
-                className="w-full py-2 text-xs text-indigo-400 hover:text-indigo-300 font-medium text-center"
+                onClick={() => onComplete(myRoommateId)}
+                disabled={isSubmitting}
+                className="w-full py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-amber-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                Prenditi in carico questo turno
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>Ho buttato la spazzatura (prendi in carico)</span>
               </button>
+            ) : (
+              <div className="text-xs text-slate-400 py-1 text-center">
+                {isUnassigned
+                  ? "Tutti i coinquilini risultano assenti o hanno rifiutato."
+                  : `Incarico assegnato a ${assignedRoommate?.name || "un altro coinquilino"}.`}
+              </div>
             )}
           </div>
         ) : (
           <button
             onClick={onReport}
-            className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-750 active:scale-[0.98] text-slate-200 font-semibold text-sm border border-slate-700 transition-all flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+            className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-750 active:scale-[0.98] text-slate-200 font-semibold text-sm border border-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            <AlertCircle className="w-4 h-4 text-amber-400" />
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-amber-400" />
+            )}
             <span>Segnala spazzatura piena</span>
           </button>
         )}

@@ -37,5 +37,4 @@ Thumbs.db
 # Temporary / test local databases
 /data/
 
-#Guida alla configurazione
-CONFIG.md
+GUIDA_CONFIGURAZIONE.md

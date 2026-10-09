@@ -11,14 +11,15 @@ import {
 } from "../domain/types";
 import {
   applyRoommateAbsence,
+  completeTrash,
   createWeekCleanings,
   formatWeekLabel,
-  getSundayOf,
   getWeekKey,
   parseWeekKey,
+  reconcileOpenTrash,
   revokeRoommateAbsence,
 } from "../domain/logic";
-import { IHouseRepository } from "./types";
+import { HistoryResult, IHouseRepository } from "./types";
 
 interface StoredData {
   roommates: Roommate[];
@@ -45,11 +46,11 @@ export class LocalHouseRepository implements IHouseRepository {
         return JSON.parse(raw);
       }
     } catch {
-      // ignore read error and fallback to default
+      // ignore read error e usa default
     }
 
     return {
-      roommates: [...DEFAULT_ROOMMATES],
+      roommates: DEFAULT_ROOMMATES.map((r) => ({ ...r })),
       trashQueue: [0, 1, 2],
       absences: {},
       cleanings: {},
@@ -59,15 +60,11 @@ export class LocalHouseRepository implements IHouseRepository {
   }
 
   private saveData(): void {
-    try {
-      const dir = path.dirname(this.filePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf-8");
-    } catch {
-      // In read-only or restricted environments, data remains in memory
+    const dir = path.dirname(this.filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
+    fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf-8");
   }
 
   async getRoommates(): Promise<Roommate[]> {
@@ -92,19 +89,25 @@ export class LocalHouseRepository implements IHouseRepository {
   }
 
   async getWeekState(weekKey: string): Promise<WeekState> {
-    const monday = parseWeekKey(weekKey);
-    const sunday = getSundayOf(monday);
+    const { monday, sunday } = parseWeekKey(weekKey);
     const absences = this.data.absences[weekKey] || [];
 
     if (!this.data.cleanings[weekKey]) {
-      this.data.cleanings[weekKey] = createWeekCleanings(weekKey, absences);
+      this.data.cleanings[weekKey] = createWeekCleanings(
+        weekKey,
+        absences,
+        this.data.roommates
+      );
       this.saveData();
     }
 
+    const startIso = new Date(Date.UTC(monday.year, monday.month - 1, monday.day)).toISOString();
+    const endIso = new Date(Date.UTC(sunday.year, sunday.month - 1, sunday.day, 23, 59, 59, 999)).toISOString();
+
     return {
       weekKey,
-      startDate: monday.toISOString(),
-      endDate: sunday.toISOString(),
+      startDate: startIso,
+      endDate: endIso,
       label: formatWeekLabel(weekKey),
       absentRoommates: absences,
       cleanings: this.data.cleanings[weekKey],
@@ -123,23 +126,51 @@ export class LocalHouseRepository implements IHouseRepository {
       if (!currentAbsences.includes(roommateId)) {
         currentAbsences = [...currentAbsences, roommateId];
         this.data.absences[weekKey] = currentAbsences;
-        // Reassign tasks
+        // Riassegna le pulizie
         this.data.cleanings[weekKey] = applyRoommateAbsence(
           weekState.cleanings,
           roommateId,
-          currentAbsences
+          currentAbsences,
+          this.data.roommates
         );
+
+        // P1-04: Riconcilia la spazzatura aperta se assegnata al nuovo assente
+        const openTrash = await this.getOpenTrashTask();
+        if (openTrash && openTrash.assignedTo === roommateId) {
+          const reconciled = reconcileOpenTrash(
+            openTrash,
+            this.data.trashQueue,
+            currentAbsences
+          );
+          if (reconciled) {
+            await this.updateTrashTask(reconciled);
+          }
+        }
       }
     } else {
       if (currentAbsences.includes(roommateId)) {
         currentAbsences = currentAbsences.filter((id) => id !== roommateId);
         this.data.absences[weekKey] = currentAbsences;
-        // Revoke absence without touching already reassigned tasks
+        // Revoca assenza pulizie
         this.data.cleanings[weekKey] = revokeRoommateAbsence(
           weekState.cleanings,
           roommateId,
-          currentAbsences
+          currentAbsences,
+          this.data.roommates
         );
+
+        // P1-04: Riconcilia la spazzatura aperta se era senza incaricato
+        const openTrash = await this.getOpenTrashTask();
+        if (openTrash && openTrash.assignedTo === null) {
+          const reconciled = reconcileOpenTrash(
+            openTrash,
+            this.data.trashQueue,
+            currentAbsences
+          );
+          if (reconciled) {
+            await this.updateTrashTask(reconciled);
+          }
+        }
       }
     }
 
@@ -180,11 +211,36 @@ export class LocalHouseRepository implements IHouseRepository {
     }
   }
 
-  async getHistory(limit: number = 50): Promise<HistoryItem[]> {
+  async completeTrashAtomic(
+    taskId: string,
+    roommateId: number,
+    roommateName: string
+  ): Promise<{ task: TrashTask; queue: number[] }> {
+    const task = this.data.trashTasks.find((t) => t.id === taskId);
+    if (!task) {
+      throw new Error("Task non trovato");
+    }
+
+    const { updatedTask, updatedQueue } = completeTrash(
+      task,
+      this.data.trashQueue,
+      roommateId,
+      roommateName
+    );
+
+    const idx = this.data.trashTasks.findIndex((t) => t.id === taskId);
+    this.data.trashTasks[idx] = updatedTask;
+    this.data.trashQueue = updatedQueue;
+    this.saveData();
+
+    return { task: updatedTask, queue: updatedQueue };
+  }
+
+  async getHistory(limit: number = 30, offset: number = 0): Promise<HistoryResult> {
     const currentWeekKey = getWeekKey(new Date());
     const items: HistoryItem[] = [];
 
-    // 1. Pulizie completate da tutte le settimane
+    // 1. Pulizie completate
     for (const [weekKey, tasks] of Object.entries(this.data.cleanings)) {
       for (const task of tasks) {
         const area = AREAS.find((a) => a.id === task.areaId);
@@ -202,10 +258,16 @@ export class LocalHouseRepository implements IHouseRepository {
             weekKey,
           });
         } else if (weekKey < currentWeekKey && !task.isCompleted) {
-          // Settimana passata non completata
-          const assignedRoommate = this.data.roommates.find((r) => r.id === task.assignedTo);
-          const personName = assignedRoommate ? assignedRoommate.name : "Nessun incaricato";
-          const sunday = getSundayOf(parseWeekKey(weekKey));
+          // Pulizia incompleta di una settimana passata
+          // P1-07: Usiamo lo snapshot assignedToName se presente, altrimenti fallback sul profilo
+          const personName =
+            task.assignedToName ||
+            (task.assignedTo !== null
+              ? this.data.roommates.find((r) => r.id === task.assignedTo)?.name || "Coinquilino"
+              : "Nessun incaricato");
+
+          const { sunday } = parseWeekKey(weekKey);
+          const sundayIso = new Date(Date.UTC(sunday.year, sunday.month - 1, sunday.day, 23, 59, 59)).toISOString();
 
           items.push({
             id: `clean-${task.id}`,
@@ -214,7 +276,7 @@ export class LocalHouseRepository implements IHouseRepository {
             areaId: task.areaId,
             status: "incomplete",
             personName,
-            date: sunday.toISOString(),
+            date: sundayIso,
             weekKey,
           });
         }
@@ -238,12 +300,19 @@ export class LocalHouseRepository implements IHouseRepository {
     // Ordina per data decrescente (più recenti prima)
     items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    return items.slice(0, limit);
+    const totalCount = items.length;
+    const paginated = items.slice(offset, offset + limit);
+    const hasMore = offset + limit < totalCount;
+
+    return {
+      items: paginated,
+      totalCount,
+      hasMore,
+    };
   }
 
   async recordFailedLogin(ip: string): Promise<void> {
     this.data.loginAttempts.push({ ip, timestamp: Date.now() });
-    // Keep only last 100 attempts
     if (this.data.loginAttempts.length > 100) {
       this.data.loginAttempts = this.data.loginAttempts.slice(-100);
     }
@@ -251,7 +320,7 @@ export class LocalHouseRepository implements IHouseRepository {
   }
 
   async isRateLimited(ip: string): Promise<boolean> {
-    const windowMs = 15 * 60 * 1000; // 15 minutes
+    const windowMs = 15 * 60 * 1000; // 15 minuti
     const now = Date.now();
     const recentAttempts = this.data.loginAttempts.filter(
       (a) => a.ip === ip && now - a.timestamp < windowMs

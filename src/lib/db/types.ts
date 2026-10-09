@@ -1,5 +1,11 @@
 import { CleaningTask, HistoryItem, Roommate, TrashTask, WeekState } from "../domain/types";
 
+export interface HistoryResult {
+  items: HistoryItem[];
+  totalCount: number;
+  hasMore: boolean;
+}
+
 export interface IHouseRepository {
   getRoommates(): Promise<Roommate[]>;
   updateRoommate(id: number, name: string): Promise<void>;
@@ -14,8 +20,9 @@ export interface IHouseRepository {
   getOpenTrashTask(): Promise<TrashTask | null>;
   createTrashTask(task: TrashTask): Promise<void>;
   updateTrashTask(task: TrashTask): Promise<void>;
+  completeTrashAtomic(taskId: string, roommateId: number, roommateName: string): Promise<{ task: TrashTask; queue: number[] }>;
 
-  getHistory(limit?: number): Promise<HistoryItem[]>;
+  getHistory(limit?: number, offset?: number): Promise<HistoryResult>;
 
   recordFailedLogin(ip: string): Promise<void>;
   isRateLimited(ip: string): Promise<boolean>;

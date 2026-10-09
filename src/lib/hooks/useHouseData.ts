@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { HouseData, Roommate } from "../domain/types";
+import { HouseData } from "../domain/types";
 
 const LOCAL_STORAGE_KEY = "flatflow_my_roommate_id";
 
@@ -11,8 +11,10 @@ export function useHouseData() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [myRoommateId, setMyRoommateIdState] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load saved roommate ID from localStorage
+  // Carica il profilo salvato da localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -23,7 +25,7 @@ export function useHouseData() {
         }
       }
     } catch {
-      // ignore localStorage errors
+      // ignore
     }
   }, []);
 
@@ -50,25 +52,25 @@ export function useHouseData() {
         return;
       }
       if (!res.ok) {
-        throw new Error("Errore nel caricamento dei dati");
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Errore nel caricamento dei dati");
       }
       const json: HouseData = await res.json();
       setData(json);
       setAuthenticated(true);
       setError(null);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      const msg = err instanceof Error ? err.message : "Errore di connessione";
       setError(msg);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Check auth and initial fetch
+  // Aggiornamento all'apertura, al ritorno sull'app e al focus
   useEffect(() => {
     fetchData();
 
-    // Re-fetch on focus and visibilitychange
     const onFocus = () => fetchData();
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -85,8 +87,10 @@ export function useHouseData() {
     };
   }, [fetchData]);
 
-  // Cleanings actions
-  const completeCleaning = async (taskId: string, weekKey: string, roommateName: string) => {
+  // Azioni pulizie
+  const completeCleaning = async (taskId: string, weekKey: string, roommateId: number) => {
+    setSubmittingTaskId(taskId);
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/cleanings", {
         method: "POST",
@@ -95,18 +99,33 @@ export function useHouseData() {
           action: "complete",
           taskId,
           weekKey,
-          roommateName,
+          roommateId,
         }),
       });
-      if (res.ok) {
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Impossibile completare l'attività";
+        setError(msg);
+        alert(msg);
         await fetchData();
+        return false;
       }
+
+      await fetchData();
+      return true;
     } catch {
-      //
+      setError("Errore di rete durante il salvataggio.");
+      return false;
+    } finally {
+      setSubmittingTaskId(null);
+      setIsSubmitting(false);
     }
   };
 
   const declineCleaning = async (taskId: string, weekKey: string, roommateId: number) => {
+    setSubmittingTaskId(taskId);
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/cleanings", {
         method: "POST",
@@ -118,15 +137,29 @@ export function useHouseData() {
           roommateId,
         }),
       });
-      if (res.ok) {
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Impossibile rinunciare all'attività";
+        setError(msg);
+        alert(msg);
         await fetchData();
+        return false;
       }
+
+      await fetchData();
+      return true;
     } catch {
-      //
+      setError("Errore di rete durante la rinuncia.");
+      return false;
+    } finally {
+      setSubmittingTaskId(null);
+      setIsSubmitting(false);
     }
   };
 
   const toggleAbsence = async (weekKey: string, roommateId: number, isAbsent: boolean) => {
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/cleanings", {
         method: "POST",
@@ -138,91 +171,144 @@ export function useHouseData() {
           isAbsent,
         }),
       });
-      if (res.ok) {
-        await fetchData();
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Impossibile aggiornare l'assenza";
+        setError(msg);
+        alert(msg);
+        return false;
       }
+
+      await fetchData();
+      return true;
     } catch {
-      //
+      setError("Errore di rete durante l'aggiornamento dell'assenza.");
+      return false;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Trash actions
+  // Azioni spazzatura
   const reportTrashAction = async () => {
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "report" }),
       });
-      if (res.ok) {
-        await fetchData();
-      } else {
-        const err = await res.json();
-        alert(err.error || "Errore nella segnalazione");
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Errore nella segnalazione della spazzatura";
+        alert(msg);
+        return false;
       }
+
+      await fetchData();
+      return true;
     } catch {
-      //
+      alert("Errore di rete durante la segnalazione.");
+      return false;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const declineTrashAction = async (roommateId: number) => {
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "decline", roommateId }),
       });
-      if (res.ok) {
-        await fetchData();
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Impossibile rinunciare al turno di spazzatura";
+        alert(msg);
+        return false;
       }
+
+      await fetchData();
+      return true;
     } catch {
-      //
+      alert("Errore di rete durante la rinuncia.");
+      return false;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const completeTrashAction = async (roommateId: number, roommateName: string) => {
+  const completeTrashAction = async (roommateId: number) => {
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete", roommateId, roommateName }),
+        body: JSON.stringify({ action: "complete", roommateId }),
       });
-      if (res.ok) {
-        await fetchData();
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Impossibile completare la spazzatura";
+        alert(msg);
+        return false;
       }
+
+      await fetchData();
+      return true;
     } catch {
-      //
+      alert("Errore di rete durante il salvataggio.");
+      return false;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const claimTrashAction = async (roommateId: number) => {
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "claim", roommateId }),
       });
-      if (res.ok) {
-        await fetchData();
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Impossibile prendere in carico la spazzatura";
+        alert(msg);
+        return false;
       }
+
+      await fetchData();
+      return true;
     } catch {
-      //
+      alert("Errore di rete durante la presa in carico.");
+      return false;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Update roommate name
-  const updateRoommateName = async (id: number, name: string) => {
+  // Aggiornamento nome coinquilino
+  const updateRoommateName = async (id: number, name: string): Promise<boolean> => {
     try {
       const res = await fetch("/api/house/roommates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, name }),
       });
-      if (res.ok) {
-        await fetchData();
-        return true;
+
+      if (!res.ok) {
+        return false;
       }
-      return false;
+      await fetchData();
+      return true;
     } catch {
       return false;
     }
@@ -242,6 +328,8 @@ export function useHouseData() {
     data,
     loading,
     error,
+    submittingTaskId,
+    isSubmitting,
     authenticated,
     myRoommateId,
     setMyRoommateId,

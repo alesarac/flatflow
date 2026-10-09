@@ -26,82 +26,91 @@ describe("LocalHouseRepository", () => {
     expect(updated[0].name).toBe("Marco");
   });
 
-  it("handles week cleanings and absence toggles", async () => {
-    const weekKey = "2026-10-05";
-    const initialWeek = await repo.getWeekState(weekKey);
-    expect(initialWeek.cleanings).toHaveLength(3);
-    expect(initialWeek.absentRoommates).toEqual([]);
-
-    // Set roommate 0 absent
-    const withAbsence = await repo.setRoommateAbsence(weekKey, 0, true);
-    expect(withAbsence.absentRoommates).toEqual([0]);
-    // The task assigned to 0 should now be assigned to someone else
-    const taskForBase0 = withAbsence.cleanings.find((t) => t.assignedTo === 0);
-    expect(taskForBase0).toBeUndefined();
-
-    // Revoke absence
-    const revoked = await repo.setRoommateAbsence(weekKey, 0, false);
-    expect(revoked.absentRoommates).toEqual([]);
-  });
-
-  it("manages trash reporting, decline and queue rotation", async () => {
-    const queue = await repo.getTrashQueue();
-    expect(queue).toEqual([0, 1, 2]);
-
-    const initialOpen = await repo.getOpenTrashTask();
-    expect(initialOpen).toBeNull();
-
-    // Report trash
-    const task = reportTrash(queue, [], null);
-    await repo.createTrashTask(task);
-
-    const openTask = await repo.getOpenTrashTask();
-    expect(openTask).not.toBeNull();
-    expect(openTask?.assignedTo).toBe(0);
-
-    // Decline trash
-    const declined = declineTrash(openTask!, queue, [], 0);
-    await repo.updateTrashTask(declined);
-
-    const declinedOpen = await repo.getOpenTrashTask();
-    expect(declinedOpen?.assignedTo).toBe(1);
-    expect(declinedOpen?.declinedBy).toEqual([0]);
-
-    // Complete trash by roommate 1
-    const { updatedTask, updatedQueue } = completeTrash(
-      declinedOpen!,
-      queue,
-      1,
-      "Coinquilino 2"
-    );
-    await repo.updateTrashTask(updatedTask);
-    await repo.updateTrashQueue(updatedQueue);
-
-    expect(await repo.getOpenTrashTask()).toBeNull();
-    expect(await repo.getTrashQueue()).toEqual([0, 2, 1]);
-  });
-
-  it("generates correct history for completed and past incomplete tasks", async () => {
+  it("handles week cleanings and preserves historical snapshot of names across renames (P1-07)", async () => {
     const pastWeekKey = "2026-09-28";
     const pastWeek = await repo.getWeekState(pastWeekKey);
+    // In week 2026-09-28 (w = 38 % 3 = 2):
+    // Area 0 (Cucina) -> 2 ("Coinquilino 3")
+    // Area 1 (Bagno) -> 0 ("Coinquilino 1")
+    // Area 2 (Ingresso) -> 1 ("Coinquilino 2")
+    expect(pastWeek.cleanings[0].assignedToName).toBe("Coinquilino 3");
+    expect(pastWeek.cleanings[1].assignedToName).toBe("Coinquilino 1");
+    expect(pastWeek.cleanings[2].assignedToName).toBe("Coinquilino 2");
 
-    // Complete area 0
+    // Roommate 2 completes area 0
     pastWeek.cleanings[0].isCompleted = true;
     pastWeek.cleanings[0].completedAt = "2026-09-30T10:00:00.000Z";
-    pastWeek.cleanings[0].completedByName = "Marco";
+    pastWeek.cleanings[0].completedByName = "Coinquilino 3";
     await repo.updateCleaningTask(pastWeek.cleanings[0]);
 
-    // Area 1 and 2 remain incomplete for past week
+    // Area 2 was assigned to Coinquilino 2 (id: 1) and remained incomplete
+    expect(pastWeek.cleanings[2].assignedToName).toBe("Coinquilino 2");
 
+    // Later on, Coinquilino 2 (id: 1) is replaced by "Giacomo" in settings
+    await repo.updateRoommate(1, "Giacomo");
+
+    // Historical records must preserve "Coinquilino 2" as assigned at that time!
     const history = await repo.getHistory();
-    // Area 0 was completed
-    const completedItem = history.find((h) => h.status === "completed" && h.areaId === 0);
-    expect(completedItem).toBeDefined();
-    expect(completedItem?.personName).toBe("Marco");
+    const incompleteArea2 = history.items.find((h) => h.status === "incomplete" && h.areaId === 2);
+    expect(incompleteArea2).toBeDefined();
+    expect(incompleteArea2?.personName).toBe("Coinquilino 2");
+  });
 
-    // Area 1 was incomplete
-    const incompleteItem = history.find((h) => h.status === "incomplete" && h.areaId === 1);
-    expect(incompleteItem).toBeDefined();
+  it("reconciles open trash task immediately when assignee declares absence (P1-04)", async () => {
+    const queue = await repo.getTrashQueue(); // [0, 1, 2]
+    const task = reportTrash(queue, [], null); // assignedTo: 0
+    await repo.createTrashTask(task);
+
+    const openBefore = await repo.getOpenTrashTask();
+    expect(openBefore?.assignedTo).toBe(0);
+
+    // Roommate 0 declares absence for week 2026-10-05
+    await repo.setRoommateAbsence("2026-10-05", 0, true);
+
+    // Open trash must be immediately reassigned to Roommate 1
+    const openAfter = await repo.getOpenTrashTask();
+    expect(openAfter?.assignedTo).toBe(1);
+    // Queue order remains untouched
+    expect(await repo.getTrashQueue()).toEqual([0, 1, 2]);
+  });
+
+  it("performs atomic completion of trash and rotates queue (P1-01)", async () => {
+    const queue = await repo.getTrashQueue(); // [0, 1, 2]
+    const task = reportTrash(queue, [], null); // assignedTo: 0
+    await repo.createTrashTask(task);
+
+    // Atomic completion
+    const { task: completed, queue: newQueue } = await repo.completeTrashAtomic(
+      task.id,
+      0,
+      "Coinquilino 1"
+    );
+
+    expect(completed.status).toBe("completed");
+    expect(completed.completedByName).toBe("Coinquilino 1");
+    expect(newQueue).toEqual([1, 2, 0]);
+
+    expect(await repo.getOpenTrashTask()).toBeNull();
+    expect(await repo.getTrashQueue()).toEqual([1, 2, 0]);
+  });
+
+  it("supports pagination in history (P1-07)", async () => {
+    // Generate and complete 3 separate trash tasks
+    for (let i = 0; i < 3; i++) {
+      const queue = await repo.getTrashQueue();
+      const t = reportTrash(queue, [], null);
+      await repo.createTrashTask(t);
+      await repo.completeTrashAtomic(t.id, t.assignedTo!, `Coinquilino ${(t.assignedTo! + 1)}`);
+    }
+
+    const page1 = await repo.getHistory(2, 0);
+    expect(page1.items).toHaveLength(2);
+    expect(page1.hasMore).toBe(true);
+    expect(page1.totalCount).toBeGreaterThanOrEqual(3);
+
+    const page2 = await repo.getHistory(2, 2);
+    expect(page2.items.length).toBeGreaterThanOrEqual(1);
+    expect(page2.hasMore).toBe(false);
   });
 
   it("enforces rate limiting after 5 failed login attempts", async () => {

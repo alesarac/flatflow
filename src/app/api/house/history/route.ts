@@ -8,8 +8,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Accesso non autorizzato" }, { status: 401 });
   }
 
-  const repo = getRepository();
-  const history = await repo.getHistory(60);
+  const { searchParams } = new URL(req.url);
+  const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "30", 10), 1), 100);
+  const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
 
-  return NextResponse.json({ history });
+  const repo = getRepository();
+  const result = await repo.getHistory(limit, offset);
+
+  return NextResponse.json(result);
 }

@@ -10,18 +10,27 @@ export function getRepository(): IHouseRepository {
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (supabaseUrl && supabaseKey) {
-    repoInstance = new SupabaseHouseRepository(supabaseUrl, supabaseKey);
-  } else {
-    repoInstance = new LocalHouseRepository();
+  if (supabaseUrl && serviceRoleKey) {
+    repoInstance = new SupabaseHouseRepository(supabaseUrl, serviceRoleKey);
+    return repoInstance;
   }
 
-  return repoInstance;
+  // Fallback a database locale consentito ESCLUSIVAMENTE in ambiente di test esplicito o con flag USE_LOCAL_DB
+  const isExplicitLocalMode =
+    process.env.NODE_ENV === "test" || process.env.USE_LOCAL_DB === "true";
+
+  if (isExplicitLocalMode) {
+    repoInstance = new LocalHouseRepository();
+    return repoInstance;
+  }
+
+  // In produzione o su Vercel, non consentire alcun fallback silenzioso effimero
+  throw new Error(
+    "Configurazione database mancante: in produzione è richiesto Supabase. " +
+      "Imposta le variabili d'ambiente NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY."
+  );
 }
 
 export function setTestRepository(repo: IHouseRepository | null): void {

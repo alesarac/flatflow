@@ -17,6 +17,9 @@ export default function HomePage() {
   const {
     data,
     loading,
+    error,
+    submittingTaskId,
+    isSubmitting,
     authenticated,
     myRoommateId,
     setMyRoommateId,
@@ -35,7 +38,7 @@ export default function HomePage() {
   const [currentTab, setCurrentTab] = useState<TabType>("home");
   const [showPickerModal, setShowPickerModal] = useState(false);
 
-  // Loading screen
+  // Schermata di caricamento
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
@@ -45,12 +48,11 @@ export default function HomePage() {
     );
   }
 
-  // Auth gate if not authenticated
+  // Blocco di autenticazione se non connesso
   if (!authenticated) {
     return <AuthGate onSuccess={refresh} />;
   }
 
-  // When data is loaded
   const roommates = data?.roommates || [];
   const currentWeek = data?.currentWeek;
   const openTrashTask = data?.openTrashTask || null;
@@ -59,14 +61,15 @@ export default function HomePage() {
   const activeRoommate =
     myRoommateId !== null ? roommates.find((r) => r.id === myRoommateId) : undefined;
 
-  // Calculate pending duties assigned to the current user
+  const isMeAbsent =
+    myRoommateId !== null && currentWeek ? currentWeek.absentRoommates.includes(myRoommateId) : false;
+
+  // Calcolo delle attività pendenti assegnate all'utente attivo
   let pendingDutiesCount = 0;
   if (myRoommateId !== null && currentWeek) {
-    // Uncompleted cleanings assigned to me
     pendingDutiesCount += currentWeek.cleanings.filter(
       (c) => c.assignedTo === myRoommateId && !c.isCompleted
     ).length;
-    // Open trash assigned to me
     if (openTrashTask && openTrashTask.assignedTo === myRoommateId) {
       pendingDutiesCount += 1;
     }
@@ -79,6 +82,12 @@ export default function HomePage() {
         activeRoommate={activeRoommate}
         onOpenPicker={() => setShowPickerModal(true)}
       />
+
+      {error && (
+        <div className="mx-4 mt-3 p-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-xs text-rose-300">
+          {error}
+        </div>
+      )}
 
       <div className="flex-1">
         {currentTab === "home" && currentWeek && (
@@ -106,15 +115,11 @@ export default function HomePage() {
                 trashQueue={trashQueue}
                 roommates={roommates}
                 myRoommateId={myRoommateId}
+                isAbsentThisWeek={isMeAbsent}
+                isSubmitting={isSubmitting}
                 onReport={reportTrash}
                 onDecline={declineTrash}
-                onComplete={(rId) => {
-                  const name =
-                    roommates.find((r) => r.id === rId)?.name ||
-                    activeRoommate?.name ||
-                    "Coinquilino";
-                  completeTrash(rId, name);
-                }}
+                onComplete={(rId) => completeTrash(rId)}
                 onClaim={claimTrash}
               />
             </section>
@@ -137,9 +142,14 @@ export default function HomePage() {
                     task={task}
                     roommates={roommates}
                     myRoommateId={myRoommateId}
+                    isAbsentThisWeek={isMeAbsent}
+                    isSubmitting={isSubmitting || submittingTaskId === task.id}
                     onComplete={(taskId) => {
-                      const name = activeRoommate?.name || "Coinquilino";
-                      completeCleaning(taskId, currentWeek.weekKey, name);
+                      if (myRoommateId !== null) {
+                        completeCleaning(taskId, currentWeek.weekKey, myRoommateId);
+                      } else {
+                        setShowPickerModal(true);
+                      }
                     }}
                     onDecline={(taskId, rId) =>
                       declineCleaning(taskId, currentWeek.weekKey, rId)
@@ -164,7 +174,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Identity Picker Modal */}
+      {/* Modale selezione identità */}
       {(showPickerModal || (myRoommateId === null && roommates.length > 0)) && (
         <RoommatePickerModal
           roommates={roommates}
@@ -177,7 +187,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* Navigation */}
+      {/* Navigazione inferiore */}
       <Navigation
         currentTab={currentTab}
         onSelectTab={setCurrentTab}

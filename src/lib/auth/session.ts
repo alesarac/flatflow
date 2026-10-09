@@ -1,15 +1,25 @@
 import crypto from "crypto";
 
 const SESSION_COOKIE_NAME = "flatflow_session";
-const DEFAULT_SESSION_SECRET = "flatflow-super-secure-secret-token-key-2026";
-const HOUSE_SECRET_CODE = process.env.HOUSE_SECRET_CODE || "flatflow2026";
 
-function getSessionSecret(): string {
-  return process.env.SESSION_SECRET || DEFAULT_SESSION_SECRET;
+export function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.trim().length < 32) {
+    throw new Error(
+      "Configurazione di sicurezza mancante: SESSION_SECRET deve essere definito e contenere almeno 32 caratteri casuali."
+    );
+  }
+  return secret.trim();
 }
 
 export function getExpectedHouseCode(): string {
-  return process.env.HOUSE_SECRET_CODE || HOUSE_SECRET_CODE;
+  const code = process.env.HOUSE_SECRET_CODE;
+  if (!code || code.trim().length === 0) {
+    throw new Error(
+      "Configurazione di sicurezza mancante: HOUSE_SECRET_CODE deve essere configurato."
+    );
+  }
+  return code.trim();
 }
 
 export interface SessionPayload {
@@ -34,27 +44,47 @@ export function createSessionToken(): string {
 }
 
 export function verifySessionToken(token: string | null | undefined): boolean {
-  if (!token) return false;
+  if (!token || typeof token !== "string") return false;
 
   const parts = token.split(".");
   if (parts.length !== 2) return false;
 
   const [payloadB64, signature] = parts;
-  const secret = getSessionSecret();
+  if (!payloadB64 || !signature) return false;
+
+  let secret: string;
+  try {
+    secret = getSessionSecret();
+  } catch {
+    // Se la chiave segreta non è configurata sul server, rifiuta la sessione
+    return false;
+  }
 
   const expectedSignature = crypto
     .createHmac("sha256", secret)
     .update(payloadB64)
     .digest("base64url");
 
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSignature);
+
+  // Previene eccezioni RangeError non controllate se i buffer hanno lunghezza differente
+  if (sigBuf.length !== expBuf.length) {
+    return false;
+  }
+
+  try {
+    if (!crypto.timingSafeEqual(sigBuf, expBuf)) {
+      return false;
+    }
+  } catch {
     return false;
   }
 
   try {
     const raw = Buffer.from(payloadB64, "base64url").toString("utf-8");
     const payload: SessionPayload = JSON.parse(raw);
-    // Token is valid for 1 year (365 days)
+    // Token valido per 1 anno (365 giorni)
     const maxAgeMs = 365 * 24 * 60 * 60 * 1000;
     if (Date.now() - payload.authenticatedAt > maxAgeMs) {
       return false;

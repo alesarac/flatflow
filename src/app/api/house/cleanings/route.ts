@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
-import { declineCleaningTask } from "@/lib/domain/logic";
+import { declineCleaningTask, getWeekKey } from "@/lib/domain/logic";
 
 export async function POST(req: Request) {
   const authenticated = await isRequestAuthenticated(req);
@@ -16,19 +16,67 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Corpo della richiesta non valido" }, { status: 400 });
   }
 
-  const { action, weekKey, taskId, roommateId, roommateName, isAbsent } = body;
+  const { action, weekKey, taskId, roommateId, isAbsent } = body;
   const repo = getRepository();
-  const weekState = await repo.getWeekState(weekKey);
+
+  // P1-03: È consentito modificare ESCLUSIVAMENTE la settimana corrente
+  const currentWeekKey = getWeekKey(new Date());
+  if (!weekKey || weekKey !== currentWeekKey) {
+    return NextResponse.json(
+      { error: "È possibile modificare soltanto le attività della settimana corrente." },
+      { status: 400 }
+    );
+  }
+
+  const [weekState, roommates] = await Promise.all([
+    repo.getWeekState(weekKey),
+    repo.getRoommates(),
+  ]);
 
   if (action === "complete") {
+    if (typeof roommateId !== "number") {
+      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
+    }
+
+    const roommate = roommates.find((r) => r.id === roommateId);
+    if (!roommate) {
+      return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
+    }
+
     const task = weekState.cleanings.find((t) => t.id === taskId);
     if (!task) {
       return NextResponse.json({ error: "Attività non trovata" }, { status: 404 });
     }
 
+    if (task.isCompleted) {
+      return NextResponse.json({ error: "L'attività risulta già completata." }, { status: 409 });
+    }
+
+    // P1-02: Verifica rigorosa dell'incaricato
+    if (task.assignedTo !== null) {
+      if (task.assignedTo !== roommateId) {
+        return NextResponse.json(
+          { error: "Solo l'incaricato assegnato a quest'area può contrassegnarla come completata." },
+          { status: 403 }
+        );
+      }
+    } else {
+      // Se l'attività era senza incaricato (tutti assenti/rinunce), chi la esegue non deve essere assente o aver già rinunciato
+      if (weekState.absentRoommates.includes(roommateId) || task.declinedBy.includes(roommateId)) {
+        return NextResponse.json(
+          { error: "Un coinquilino assente o che ha già rinunciato non può farsi carico dell'attività." },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Snapshot del nome ricavato direttamente dal database (non dal payload del client)
     task.isCompleted = true;
     task.completedAt = new Date().toISOString();
-    task.completedByName = roommateName || "Coinquilino";
+    task.completedByName = roommate.name;
+    task.assignedTo = roommateId;
+    task.assignedToName = roommate.name;
+
     await repo.updateCleaningTask(task);
 
     const updatedWeek = await repo.getWeekState(weekKey);
@@ -36,12 +84,33 @@ export async function POST(req: Request) {
   }
 
   if (action === "decline") {
+    if (typeof roommateId !== "number") {
+      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
+    }
+
     const task = weekState.cleanings.find((t) => t.id === taskId);
     if (!task) {
       return NextResponse.json({ error: "Attività non trovata" }, { status: 404 });
     }
 
-    const updatedTask = declineCleaningTask(task, weekState.absentRoommates, roommateId);
+    if (task.isCompleted) {
+      return NextResponse.json({ error: "L'attività è già completata." }, { status: 409 });
+    }
+
+    // P1-02: Solo l'attuale assegnatario può rinunciare
+    if (task.assignedTo !== roommateId) {
+      return NextResponse.json(
+        { error: "Solo l'incaricato attuale dell'area può rinunciare." },
+        { status: 403 }
+      );
+    }
+
+    const updatedTask = declineCleaningTask(
+      task,
+      weekState.absentRoommates,
+      roommateId,
+      roommates
+    );
     await repo.updateCleaningTask(updatedTask);
 
     const updatedWeek = await repo.getWeekState(weekKey);

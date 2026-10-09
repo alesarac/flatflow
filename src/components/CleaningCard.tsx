@@ -1,12 +1,14 @@
 "use client";
 
 import { AREAS, CleaningTask, Roommate } from "../lib/domain/types";
-import { UtensilsCrossed, Sparkles, DoorOpen, CheckCircle2, AlertTriangle, ArrowRight } from "lucide-react";
+import { UtensilsCrossed, Sparkles, DoorOpen, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 
 interface CleaningCardProps {
   task: CleaningTask;
   roommates: Roommate[];
   myRoommateId: number | null;
+  isAbsentThisWeek: boolean;
+  isSubmitting?: boolean;
   onComplete: (taskId: string) => void;
   onDecline: (taskId: string, roommateId: number) => void;
 }
@@ -15,12 +17,16 @@ export function CleaningCard({
   task,
   roommates,
   myRoommateId,
+  isAbsentThisWeek,
+  isSubmitting = false,
   onComplete,
   onDecline,
 }: CleaningCardProps) {
   const area = AREAS.find((a) => a.id === task.areaId) || AREAS[0];
   const assignedRoommate = roommates.find((r) => r.id === task.assignedTo);
   const isAssignedToMe = myRoommateId !== null && task.assignedTo === myRoommateId;
+  const isUnassigned = task.assignedTo === null;
+  const canClaim = isUnassigned && myRoommateId !== null && !isAbsentThisWeek && !task.declinedBy.includes(myRoommateId);
 
   const renderIcon = () => {
     switch (task.areaId) {
@@ -56,8 +62,8 @@ export function CleaningCard({
               <span>Incarico:</span>
               <span className={`font-medium ${isAssignedToMe ? "text-indigo-300 font-bold" : "text-slate-300"}`}>
                 {task.assignedTo !== null
-                  ? assignedRoommate?.name || `Coinquilino ${task.assignedTo + 1}`
-                  : "Nessun incaricato"}
+                  ? assignedRoommate?.name || task.assignedToName || `Coinquilino ${task.assignedTo + 1}`
+                  : "Nessun incaricato disponibile"}
               </span>
             </div>
           </div>
@@ -72,9 +78,10 @@ export function CleaningCard({
           <span className="text-[11px] font-bold text-indigo-300 bg-indigo-500/20 border border-indigo-500/40 px-2.5 py-1 rounded-full animate-pulse">
             Tocca a te!
           </span>
-        ) : task.assignedTo === null ? (
-          <span className="text-[11px] font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-            Da assegnare
+        ) : isUnassigned ? (
+          <span className="text-[11px] font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            Da coprire
           </span>
         ) : null}
       </div>
@@ -85,24 +92,49 @@ export function CleaningCard({
           <p className="text-xs text-slate-400">
             Completata da <span className="font-semibold text-slate-200">{task.completedByName}</span>
           </p>
-        ) : (
+        ) : isAssignedToMe ? (
+          // P1-02: Mostra i pulsanti solo all'incaricato effettivo
           <div className="flex items-center gap-2">
             <button
               onClick={() => onComplete(task.id)}
-              className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+              className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <CheckCircle2 className="w-4 h-4" />
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4" />
+              )}
               <span>Ho pulito</span>
             </button>
 
-            {isAssignedToMe && (
-              <button
-                onClick={() => onDecline(task.id, myRoommateId)}
-                className="py-3 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 font-medium text-xs border border-slate-700 transition-all shrink-0"
-              >
-                Non posso pulire
-              </button>
+            <button
+              onClick={() => onDecline(task.id, myRoommateId)}
+              disabled={isSubmitting}
+              className="py-3 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 font-medium text-xs border border-slate-700 transition-all shrink-0 disabled:opacity-50"
+            >
+              Non posso pulire
+            </button>
+          </div>
+        ) : canClaim ? (
+          // Task senza incaricato: un coinquilino disponibile può intervenire
+          <button
+            onClick={() => onComplete(task.id)}
+            disabled={isSubmitting}
+            className="w-full py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-amber-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4" />
             )}
+            <span>Ho pulito io (prende in carico)</span>
+          </button>
+        ) : (
+          <div className="text-xs text-slate-400 py-1 text-center">
+            {isUnassigned
+              ? "Tutti i coinquilini risultano assenti o hanno rinunciato a quest'area."
+              : `In carico a ${assignedRoommate?.name || "un altro coinquilino"}.`}
           </div>
         )}
       </div>
