@@ -100,8 +100,10 @@ export function SettingsView({
   return (
     <div className="p-4 space-y-4 max-w-md mx-auto">
       <div>
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Impostazioni</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <h2 className="text-[22px] font-bold text-slate-900 dark:text-white tracking-tight">
+          Impostazioni
+        </h2>
+        <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
           Profilo locale, aspetto e configurazione casa
         </p>
       </div>
@@ -109,14 +111,14 @@ export function SettingsView({
       {/* 1. Selezione profilo attivo */}
       <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-sm transition-colors">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/50 border border-indigo-100/60 dark:border-indigo-900/40 flex items-center justify-center text-[#4355EC] dark:text-indigo-400 shrink-0">
             <Smartphone className="w-5 h-5" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               Chi usa questo telefono?
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
               I compiti assegnati a questo profilo verranno mostrati in home.
             </p>
           </div>
@@ -130,10 +132,10 @@ export function SettingsView({
                 key={r.id}
                 type="button"
                 onClick={() => onSelectMyId(r.id)}
-                className={`py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center truncate ${
+                className={`py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center truncate outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                   isSelected
-                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
+                    ? "bg-[#4355EC] text-white border-transparent shadow-sm"
+                    : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750"
                 }`}
               >
                 {r.name}
@@ -152,7 +154,7 @@ export function SettingsView({
               Tema e aspetto
             </h3>
           </div>
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+          <span className="text-xs font-medium text-slate-400 dark:text-slate-400">
             {resolvedTheme === "light" ? "Aspetto: Chiaro" : "Aspetto: Scuro"}
           </span>
         </div>
@@ -161,10 +163,10 @@ export function SettingsView({
           <button
             type="button"
             onClick={() => setMode("auto")}
-            className={`py-3 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 ${
+            className={`py-3 px-2 rounded-2xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
               mode === "auto"
-                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
+                ? "bg-[#4355EC] text-white border-transparent shadow-sm"
+                : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750"
             }`}
           >
             <span
@@ -180,10 +182,10 @@ export function SettingsView({
           <button
             type="button"
             onClick={() => setMode("light")}
-            className={`py-3 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 ${
+            className={`py-3 px-2 rounded-2xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
               mode === "light"
-                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
+                ? "bg-[#4355EC] text-white border-transparent shadow-sm"
+                : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750"
             }`}
           >
             <Sun className={`w-5 h-5 ${mode === "light" ? "text-white" : "text-amber-500"}`} />
@@ -193,10 +195,10 @@ export function SettingsView({
           <button
             type="button"
             onClick={() => setMode("dark")}
-            className={`py-3 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 ${
+            className={`py-3 px-2 rounded-2xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
               mode === "dark"
-                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
+                ? "bg-[#4355EC] text-white border-transparent shadow-sm"
+                : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750"
             }`}
           >
             <Moon className={`w-5 h-5 ${mode === "dark" ? "text-white" : "text-indigo-400"}`} />
@@ -206,7 +208,7 @@ export function SettingsView({
 
         {/* Dettagli modalità automatica */}
         {mode === "auto" && (
-          <div className="pt-2 space-y-2.5 border-t border-slate-100 dark:border-slate-800/80">
+          <div className="pt-2.5 space-y-2.5 border-t border-slate-100 dark:border-slate-800/80">
             <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               {coords && sunTimes?.sunrise && sunTimes?.sunset ? (
                 <p>
@@ -233,7 +235,7 @@ export function SettingsView({
               type="button"
               onClick={() => requestLocation()}
               disabled={locationLoading}
-              className="w-full py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 dark:border-slate-700 text-xs font-medium border transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 dark:border-slate-700 text-xs font-semibold border transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 shadow-sm"
             >
               {locationLoading ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -273,14 +275,14 @@ export function SettingsView({
         className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm transition-colors"
       >
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/50 border border-indigo-100/60 dark:border-indigo-900/40 flex items-center justify-center text-[#4355EC] dark:text-indigo-400 shrink-0">
             <Users className="w-5 h-5" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               Nomi dei 3 coinquilini
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
               Se cambia un coinquilino, aggiorna qui il suo nome.
             </p>
           </div>
@@ -289,7 +291,7 @@ export function SettingsView({
         <div className="space-y-3">
           {roommates.map((r) => (
             <div key={r.id} className="space-y-1">
-              <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+              <label className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
                 COINQUILINO {r.id + 1}
               </label>
               <input
@@ -298,7 +300,7 @@ export function SettingsView({
                 onChange={(e) => handleNameChange(r.id, e.target.value)}
                 maxLength={30}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 text-slate-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
               />
             </div>
           ))}
@@ -321,7 +323,7 @@ export function SettingsView({
         <button
           type="submit"
           disabled={saving || !hasChanges}
-          className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 px-4 rounded-xl bg-[#4355EC] hover:bg-indigo-600 active:scale-[0.98] text-white font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
           {saving ? (
             <>
@@ -337,20 +339,20 @@ export function SettingsView({
       {/* 4. Installazione PWA */}
       <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm transition-colors">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/50 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-sky-50 dark:bg-sky-950/50 border border-sky-100 dark:border-sky-900/40 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
             <Smartphone className="w-5 h-5" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               Uso da smartphone (PWA)
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
               Installa Flatflow come una vera app sul tuo telefono per un accesso rapido.
             </p>
           </div>
         </div>
 
-        <div className="text-xs text-slate-600 dark:text-slate-300 space-y-2 pt-0.5 pl-12 border-t border-slate-100 dark:border-slate-800/80">
+        <div className="text-xs text-slate-600 dark:text-slate-300 space-y-2 pt-0.5 pl-13 border-t border-slate-100 dark:border-slate-800/80">
           <p>
             <strong className="text-slate-900 dark:text-white">iPhone (Safari):</strong> tocca{" "}
             <span className="font-semibold text-slate-800 dark:text-slate-200">Condividi</span> &gt;{" "}
@@ -368,7 +370,7 @@ export function SettingsView({
         <button
           type="button"
           onClick={onLogout}
-          className="w-full py-3 px-4 rounded-xl bg-rose-50/70 hover:bg-rose-100/80 text-rose-600 border border-rose-200/80 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20 font-medium text-xs flex items-center justify-center gap-2 transition-colors active:scale-98"
+          className="w-full py-3 px-4 rounded-xl border border-rose-200/80 bg-rose-50/50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-rose-100/60 dark:hover:bg-rose-900/30 transition-colors shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
         >
           <LogOut className="w-4 h-4" />
           <span>Disconnetti questo dispositivo</span>

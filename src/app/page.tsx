@@ -90,7 +90,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="flex-1">
+      <main className="flex-1 max-w-md mx-auto w-full pb-24">
         {currentTab === "home" && currentWeek && (
           <div className="p-4 space-y-5">
             {/* 1. Settimana corrente e progresso pulizie */}
@@ -111,11 +111,14 @@ export default function HomePage() {
             />
 
             {/* 3. Spazzatura */}
-            <section className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <section className="space-y-2.5">
+              <div className="flex items-center justify-between px-0.5">
+                <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
                   Spazzatura
                 </h2>
+                <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                  Gestione turni
+                </span>
               </div>
               <TrashCard
                 openTask={openTrashTask}
@@ -133,9 +136,9 @@ export default function HomePage() {
 
             {/* 4. Pulizie della settimana */}
             <section className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Pulizie della Settimana
+              <div className="flex items-center justify-between px-0.5">
+                <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
+                  Pulizie della settimana
                 </h2>
               </div>
 
@@ -183,7 +186,7 @@ export default function HomePage() {
             onLogout={logout}
           />
         )}
-      </div>
+      </main>
 
       {/* Modale selezione identità */}
       {(showPickerModal || (myRoommateId === null && roommates.length > 0)) && (

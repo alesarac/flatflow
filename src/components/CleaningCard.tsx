@@ -1,7 +1,7 @@
 "use client";
 
 import { AREAS, CleaningTask, Roommate } from "../lib/domain/types";
-import { UtensilsCrossed, Sparkles, DoorOpen, CheckCircle2, AlertTriangle, Loader2, Undo2 } from "lucide-react";
+import { UtensilsCrossed, Sparkles, DoorOpen, CheckCircle2, AlertTriangle, Loader2, Undo2, ArrowRight } from "lucide-react";
 
 interface CleaningCardProps {
   task: CleaningTask;
@@ -43,43 +43,37 @@ export function CleaningCard({
   const renderIcon = () => {
     switch (task.areaId) {
       case 0:
-        return <UtensilsCrossed className="w-5 h-5 text-indigo-400" />;
+        return <UtensilsCrossed className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
       case 1:
-        return <Sparkles className="w-5 h-5 text-sky-400" />;
+        return <Sparkles className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
       case 2:
-        return <DoorOpen className="w-5 h-5 text-emerald-400" />;
+        return <DoorOpen className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
       default:
-        return <Sparkles className="w-5 h-5 text-indigo-400" />;
+        return <Sparkles className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
     }
   };
 
-  const hasBottomActions = !task.isCompleted && (isAssignedToMe || canClaim || isUnassigned);
+  const hasBottomActions = !task.isCompleted && (isAssignedToMe || canClaim);
 
   return (
-    <div
-      className={`rounded-2xl p-4 transition-all border ${
-        task.isCompleted
-          ? "bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 opacity-90"
-          : isAssignedToMe
-          ? "bg-indigo-50/90 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-500/50 shadow-md shadow-indigo-100 dark:shadow-indigo-950/50"
-          : "bg-white dark:bg-slate-850/90 border-slate-200 dark:border-slate-800 shadow-sm"
-      }`}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center shrink-0">
+    <div className="bg-white dark:bg-slate-850/90 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm transition-colors">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50/70 border border-indigo-100/60 dark:bg-indigo-950/50 dark:border-indigo-900/40 flex items-center justify-center shrink-0">
             {renderIcon()}
           </div>
-          <div>
-            <h3 className="font-semibold text-slate-900 dark:text-white text-base leading-tight">{area.name}</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <div className="min-w-0">
+            <h3 className="font-bold text-slate-900 dark:text-white text-base leading-tight truncate">
+              {area.name}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
               {task.isCompleted ? (
                 <>
-                  Completata da <span className="font-medium text-slate-800 dark:text-slate-200">{task.completedByName || "Coinquilino"}</span>
+                  Completata da <span className="font-medium text-slate-700 dark:text-slate-200">{task.completedByName || "Coinquilino"}</span>
                 </>
               ) : task.assignedTo !== null ? (
                 <>
-                  Tocca a <span className={`font-medium ${isAssignedToMe ? "text-indigo-600 dark:text-indigo-400 font-semibold" : "text-slate-800 dark:text-slate-200"}`}>{assignedRoommate?.name || task.assignedToName || `Coinquilino ${task.assignedTo + 1}`}</span>
+                  Tocca a <span className={`font-semibold ${isAssignedToMe ? "text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-200"}`}>{assignedRoommate?.name || task.assignedToName || `Coinquilino ${task.assignedTo + 1}`}</span>
                 </>
               ) : (
                 <span className="text-amber-600 dark:text-amber-400 font-medium">Nessun incaricato disponibile</span>
@@ -91,7 +85,7 @@ export function CleaningCard({
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           {task.isCompleted ? (
             <>
-              <div className="flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-1 rounded-full">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 px-3 py-1 rounded-full shadow-sm">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Fatta</span>
               </div>
@@ -100,7 +94,7 @@ export function CleaningCard({
                   type="button"
                   onClick={() => onUncomplete(task.id)}
                   disabled={isSubmitting}
-                  className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 text-xs font-medium shadow-sm"
+                  className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 font-semibold active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 text-xs shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                   title="Annulla completamento"
                 >
                   {isSubmitting ? (
@@ -113,11 +107,11 @@ export function CleaningCard({
               )}
             </>
           ) : isAssignedToMe ? (
-            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-300 dark:border-indigo-500/40 px-2.5 py-1 rounded-full">
+            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 px-3 py-1 rounded-full shadow-sm">
               Tocca a te!
             </span>
           ) : isUnassigned ? (
-            <span className="text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+            <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
               <AlertTriangle className="w-3.5 h-3.5" />
               Da coprire
             </span>
@@ -127,13 +121,14 @@ export function CleaningCard({
 
       {/* Azioni disponibili per attività non completate */}
       {hasBottomActions && (
-        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+        <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
           {isAssignedToMe ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onComplete(task.id)}
                 disabled={isSubmitting}
-                className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                type="button"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -144,30 +139,24 @@ export function CleaningCard({
               </button>
 
               <button
-                onClick={() => onDecline(task.id, myRoommateId)}
+                onClick={() => onDecline(task.id, myRoommateId!)}
                 disabled={isSubmitting}
-                className="py-3 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700 font-medium text-xs border transition-all shrink-0 disabled:opacity-50"
+                type="button"
+                className="py-2.5 px-3 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 font-semibold text-xs transition-all active:scale-[0.98] shrink-0 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
-                Non posso pulire
+                Non posso
               </button>
             </div>
           ) : canClaim ? (
             <button
               onClick={() => onComplete(task.id)}
               disabled={isSubmitting}
-              className="w-full py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-amber-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              type="button"
+              className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4" />
-              )}
-              <span>Ho pulito io (prende in carico)</span>
+              <ArrowRight className="w-4 h-4" />
+              <span>Prendo in carico questa pulizia</span>
             </button>
-          ) : isUnassigned ? (
-            <div className="text-xs text-slate-500 dark:text-slate-400 py-1 text-center">
-              Tutti i coinquilini risultano assenti o hanno rinunciato a quest&apos;area.
-            </div>
           ) : null}
         </div>
       )}

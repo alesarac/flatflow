@@ -18,7 +18,7 @@ export function Navigation({ currentTab, onSelectTab, pendingCount = 0 }: Naviga
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800/80 pb-safe transition-colors">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/60 dark:border-slate-800/60 pb-safe transition-colors">
       <div className="max-w-md mx-auto grid grid-cols-3 px-3 py-1.5 gap-2">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -26,11 +26,12 @@ export function Navigation({ currentTab, onSelectTab, pendingCount = 0 }: Naviga
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => onSelectTab(tab.id)}
-              className={`flex flex-col items-center justify-center py-2 px-3 rounded-2xl transition-all relative ${
+              className={`flex flex-col items-center justify-center py-2 px-3 rounded-2xl transition-all relative border border-transparent outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 select-none active:scale-[0.98] ${
                 isActive
-                  ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold"
-                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  ? "bg-[#EEF2FF] dark:bg-indigo-950/60 text-[#4355EC] dark:text-indigo-400 font-semibold"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 font-medium"
               }`}
             >
               <div className="relative">
