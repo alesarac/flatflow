@@ -57,6 +57,7 @@ export interface HouseData {
   currentWeek: WeekState;
   openTrashTask: TrashTask | null;
   trashQueue: number[]; // Ordered array of roommate IDs, e.g. [0, 1, 2]
+  myRoommateId?: number;
 }
 
 export interface HistoryItem {

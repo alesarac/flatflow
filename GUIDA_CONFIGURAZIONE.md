@@ -185,9 +185,14 @@ I piani gratuiti di Supabase e Vercel sono più che sufficienti per l'utilizzo d
 ### Primo Accesso da Smartphone:
 
 1. Condividi il link Vercel con i tuoi due coinquilini (es. tramite messaggio o chat di gruppo).
-2. All'apertura della pagina, ciascuno inserisce il **codice segreto della casa** (`HOUSE_SECRET_CODE`).
-3. Il server verifica il codice e memorizza la sessione sul browser del dispositivo per 1 anno tramite cookie sicuro HTTP-only, evitando di doverlo reinserire a ogni visita.
-4. L'app chiede: **«Chi sei?»**: ciascun coinquilino seleziona il proprio nome dalla lista dei tre profili. La scelta rimane salvata sul dispositivo, ma può essere cambiata in qualsiasi momento dalle impostazioni.
+2. All'apertura della pagina, ciascuno inserisce il **codice segreto della casa** (`HOUSE_SECRET_CODE`) e seleziona il proprio nome dall'elenco dei tre profili coinquilini caricati dal database.
+3. Il server verifica il codice e salva l'ID stabile del coinquilino (0, 1 o 2) nel cookie HTTP-only firmato (durata 1 anno). Il profilo resta fisso e vincolato al dispositivo: non è possibile scambiare profilo durante l'uso, garantendo che ogni coinquilino registri solo le proprie azioni.
+4. Per cambiare dispositivo o profilo, è sufficiente premere **«Esci»** nelle Impostazioni e accedere nuovamente.
+
+### Personalizzazione dei Nomi dei Coinquilini:
+
+- **Dall'applicazione:** nelle **Impostazioni**, ciascun coinquilino visualizza tutti e tre i nomi, ma può modificare esclusivamente il proprio.
+- **Da Supabase (consigliato per impostazione iniziale):** apri il file [`supabase/nomi-coinquilini.sql`](./supabase/nomi-coinquilini.sql), personalizza i tre nomi negli `UPDATE`, incollalo nel **SQL Editor** di Supabase e premi **«Run»**.
 
 ### Installazione come PWA (Icona su Schermata Home):
 
@@ -217,8 +222,6 @@ Per utilizzare l'app a schermo intero senza barre di navigazione del browser:
   - Chi la getta preme **«Ho buttato»** e passa in fondo alla coda.
   - Chi non può preme **«Non posso»**: il turno passa al coinquilino successivo in coda, e chi ha rinunciato mantiene la priorità in testa alla coda per la prossima segnalazione.
   - Se tutti rinunciano, compare lo stato **«Da coprire»** e chiunque può prenderla in carico premendo **«Me ne occupo io»** prima di registrarla con **«Ho buttato»**.
-- **Modifica dei nomi dei coinquilini:**
-  - Dalle **Impostazioni**, è possibile personalizzare i nomi dei coinquilini in qualsiasi momento. Lo storico delle pulizie già effettuate preserverà i nomi storici originali.
 
 ---
 

@@ -5,7 +5,6 @@ import { useHouseData } from "../lib/hooks/useHouseData";
 import { AuthGate } from "../components/AuthGate";
 import { Header } from "../components/Header";
 import { Navigation, TabType } from "../components/Navigation";
-import { RoommatePickerModal } from "../components/RoommatePickerModal";
 import { CleaningCard } from "../components/CleaningCard";
 import { TrashCard } from "../components/TrashCard";
 import { HistoryView } from "../components/HistoryView";
@@ -22,7 +21,6 @@ export default function HomePage() {
     isSubmitting,
     authenticated,
     myRoommateId,
-    setMyRoommateId,
     refresh,
     completeCleaning,
     declineCleaning,
@@ -37,7 +35,6 @@ export default function HomePage() {
   } = useHouseData();
 
   const [currentTab, setCurrentTab] = useState<TabType>("home");
-  const [showPickerModal, setShowPickerModal] = useState(false);
 
   // Schermata di caricamento
   if (loading) {
@@ -49,8 +46,8 @@ export default function HomePage() {
     );
   }
 
-  // Blocco di autenticazione se non connesso
-  if (!authenticated) {
+  // Blocco di autenticazione se non connesso o privo di profilo
+  if (!authenticated || myRoommateId === null) {
     return <AuthGate onSuccess={refresh} />;
   }
 
@@ -59,12 +56,11 @@ export default function HomePage() {
   const openTrashTask = data?.openTrashTask || null;
   const trashQueue = data?.trashQueue || [0, 1, 2];
 
-  const activeRoommate =
-    myRoommateId !== null ? roommates.find((r) => r.id === myRoommateId) : undefined;
+  const activeRoommate = roommates.find((r) => r.id === myRoommateId);
 
   // Calcolo delle attività pendenti assegnate all'utente attivo
   let pendingDutiesCount = 0;
-  if (myRoommateId !== null && currentWeek) {
+  if (currentWeek) {
     pendingDutiesCount += currentWeek.cleanings.filter(
       (c) => c.assignedTo === myRoommateId && !c.isCompleted
     ).length;
@@ -75,10 +71,7 @@ export default function HomePage() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <Header
-        activeRoommate={activeRoommate}
-        onOpenPicker={() => setShowPickerModal(true)}
-      />
+      <Header activeRoommate={activeRoommate} />
 
       {error && (
         <div className="mx-4 mt-3 p-3 bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-300 rounded-2xl text-xs border">
@@ -132,28 +125,16 @@ export default function HomePage() {
                     myRoommateId={myRoommateId}
                     isSubmitting={isSubmitting || submittingTaskId === task.id}
                     onComplete={(taskId) => {
-                      if (myRoommateId !== null) {
-                        completeCleaning(taskId, currentWeek.weekKey, myRoommateId);
-                      } else {
-                        setShowPickerModal(true);
-                      }
+                      completeCleaning(taskId, currentWeek.weekKey, myRoommateId);
                     }}
-                    onDecline={(taskId, rId) =>
-                      declineCleaning(taskId, currentWeek.weekKey, rId)
-                    }
+                    onDecline={(taskId, rId) => {
+                      declineCleaning(taskId, currentWeek.weekKey, rId);
+                    }}
                     onClaim={(taskId, rId) => {
-                      if (myRoommateId !== null) {
-                        claimCleaning(taskId, currentWeek.weekKey, rId);
-                      } else {
-                        setShowPickerModal(true);
-                      }
+                      claimCleaning(taskId, currentWeek.weekKey, rId);
                     }}
                     onUncomplete={(taskId) => {
-                      if (myRoommateId !== null) {
-                        uncompleteCleaning(taskId, currentWeek.weekKey, myRoommateId);
-                      } else {
-                        setShowPickerModal(true);
-                      }
+                      uncompleteCleaning(taskId, currentWeek.weekKey, myRoommateId);
                     }}
                   />
                 ))}
@@ -168,25 +149,11 @@ export default function HomePage() {
           <SettingsView
             roommates={roommates}
             myRoommateId={myRoommateId}
-            onSelectMyId={setMyRoommateId}
             onUpdateRoommateName={updateRoommateName}
             onLogout={logout}
           />
         )}
       </main>
-
-      {/* Modale selezione identità */}
-      {(showPickerModal || (myRoommateId === null && roommates.length > 0)) && (
-        <RoommatePickerModal
-          roommates={roommates}
-          currentId={myRoommateId}
-          onSelect={(id) => {
-            setMyRoommateId(id);
-            setShowPickerModal(false);
-          }}
-          onClose={myRoommateId !== null ? () => setShowPickerModal(false) : undefined}
-        />
-      )}
 
       {/* Navigazione inferiore */}
       <Navigation

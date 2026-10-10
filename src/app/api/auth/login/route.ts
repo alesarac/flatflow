@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Formato richiesta non valido" }, { status: 400 });
   }
 
-  const { code } = body;
+  const { code, roommateId } = body;
   const expectedCode = getExpectedHouseCode();
 
   if (!code || typeof code !== "string" || code.trim() !== expectedCode.trim()) {
@@ -35,11 +35,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Codice segreto non corretto" }, { status: 401 });
   }
 
+  if (typeof roommateId !== "number" || ![0, 1, 2].includes(roommateId)) {
+    return NextResponse.json(
+      { error: "Seleziona il tuo profilo coinquilino (ID 0, 1 o 2)." },
+      { status: 400 }
+    );
+  }
+
+  const roommates = await repo.getRoommates();
+  const roommate = roommates.find((r) => r.id === roommateId);
+  if (!roommate) {
+    return NextResponse.json({ error: "Profilo coinquilino non trovato nel database." }, { status: 404 });
+  }
+
   // Success: reset rate limit
   await repo.resetRateLimit(ip);
 
-  const token = createSessionToken();
-  const response = NextResponse.json({ success: true });
+  const token = createSessionToken(roommateId);
+  const response = NextResponse.json({
+    success: true,
+    roommateId,
+    name: roommate.name,
+  });
 
   response.cookies.set({
     name: SESSION_COOKIE_NAME,

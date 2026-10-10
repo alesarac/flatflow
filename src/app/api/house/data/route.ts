@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { isRequestAuthenticated } from "@/lib/auth/server";
+import { getRequestSession } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
 import { getWeekKey } from "@/lib/domain/logic";
 
 export async function GET(req: Request) {
-  const authenticated = await isRequestAuthenticated(req);
-  if (!authenticated) {
+  const session = await getRequestSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Accesso non autorizzato" }, { status: 401 });
   }
 
@@ -24,5 +24,6 @@ export async function GET(req: Request) {
     currentWeek,
     openTrashTask,
     trashQueue,
+    myRoommateId: session.roommateId,
   });
 }

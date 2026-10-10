@@ -46,13 +46,12 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
   - Pulizie passate rimaste incomplete con settimana di riferimento.
   - Conferimenti della spazzatura registrati.
 
-### 🔒 Accesso condiviso e Privacy
+### 🔒 Accesso condiviso e Profilo Univoco
 
-- **Nessuna registrazione, nessun account personale, nessun amministratore.**
-- Un **unico codice segreto condiviso per la casa**, verificato rigorosamente sul server e protetto da rate-limiting su tentativi ripetuti.
-- Memorizzazione sicura della sessione (cookie HTTP-only con durata annuale) per non richiedere continuamente il codice.
-- Selezione locale del proprio nome salvata sul dispositivo, con possibilità di cambiare coinquilino attivo in qualsiasi momento.
-- I nomi dei 3 coinquilini sono facilmente modificabili dalle impostazioni senza alterare lo storico passato.
+- **Nessuna registrazione o password individuale:** accesso rapido basato sul codice segreto condiviso della casa (`HOUSE_SECRET_CODE`) e selezione dell'identità dai 3 profili letti dal database.
+- **Profilo vincolato alla sessione:** l'ID stabile del coinquilino (0, 1 o 2) viene salvato all'accesso nel cookie HTTP-only firmato (durata annuale). Non è possibile cambiare profilo durante l'utilizzo; per cambiare identità occorre effettuare il logout da «Esci».
+- **Sicurezza server-side:** tutte le API derivano l'identità del richiedente direttamente dalla sessione autenticata. Qualsiasi tentativo di impersonificare o rinominare altri coinquilini viene respinto con HTTP 403 Forbidden.
+- **Personalizzazione nomi:** dalle Impostazioni ciascun coinquilino può modificare esclusivamente il proprio nome; i nomi possono essere personalizzati anche via SQL su Supabase tramite lo script `supabase/nomi-coinquilini.sql`.
 
 ---
 

@@ -24,13 +24,19 @@ export function getExpectedHouseCode(): string {
 
 export interface SessionPayload {
   houseId: string;
+  roommateId: number;
   authenticatedAt: number;
 }
 
-export function createSessionToken(): string {
+export function createSessionToken(roommateId: number): string {
+  if (typeof roommateId !== "number" || ![0, 1, 2].includes(roommateId)) {
+    throw new Error("roommateId non valido per la sessione (deve essere 0, 1 o 2)");
+  }
+
   const secret = getSessionSecret();
   const payload: SessionPayload = {
     houseId: "default",
+    roommateId,
     authenticatedAt: Date.now(),
   };
 
@@ -43,21 +49,21 @@ export function createSessionToken(): string {
   return `${payloadB64}.${signature}`;
 }
 
-export function verifySessionToken(token: string | null | undefined): boolean {
-  if (!token || typeof token !== "string") return false;
+export function getSessionPayload(token: string | null | undefined): SessionPayload | null {
+  if (!token || typeof token !== "string") return null;
 
   const parts = token.split(".");
-  if (parts.length !== 2) return false;
+  if (parts.length !== 2) return null;
 
   const [payloadB64, signature] = parts;
-  if (!payloadB64 || !signature) return false;
+  if (!payloadB64 || !signature) return null;
 
   let secret: string;
   try {
     secret = getSessionSecret();
   } catch {
     // Se la chiave segreta non è configurata sul server, rifiuta la sessione
-    return false;
+    return null;
   }
 
   const expectedSignature = crypto
@@ -70,15 +76,15 @@ export function verifySessionToken(token: string | null | undefined): boolean {
 
   // Previene eccezioni RangeError non controllate se i buffer hanno lunghezza differente
   if (sigBuf.length !== expBuf.length) {
-    return false;
+    return null;
   }
 
   try {
     if (!crypto.timingSafeEqual(sigBuf, expBuf)) {
-      return false;
+      return null;
     }
   } catch {
-    return false;
+    return null;
   }
 
   try {
@@ -87,12 +93,23 @@ export function verifySessionToken(token: string | null | undefined): boolean {
     // Token valido per 1 anno (365 giorni)
     const maxAgeMs = 365 * 24 * 60 * 60 * 1000;
     if (Date.now() - payload.authenticatedAt > maxAgeMs) {
-      return false;
+      return null;
     }
-    return payload.houseId === "default";
+    if (payload.houseId !== "default") {
+      return null;
+    }
+    // Rifiuta sessioni prive di roommateId o con ID non valido (invalida vecchie sessioni)
+    if (typeof payload.roommateId !== "number" || ![0, 1, 2].includes(payload.roommateId)) {
+      return null;
+    }
+    return payload;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function verifySessionToken(token: string | null | undefined): boolean {
+  return getSessionPayload(token) !== null;
 }
 
 export function getClientIp(req: Request): string {

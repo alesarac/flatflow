@@ -12,7 +12,6 @@ import {
   Moon,
   SunMedium,
   MapPin,
-  UserCheck,
 } from "lucide-react";
 import { useTheme } from "../lib/theme/ThemeContext";
 import { formatSunTime } from "../lib/theme/solar";
@@ -20,7 +19,6 @@ import { formatSunTime } from "../lib/theme/solar";
 interface SettingsViewProps {
   roommates: Roommate[];
   myRoommateId: number | null;
-  onSelectMyId: (id: number) => void;
   onUpdateRoommateName: (id: number, name: string) => Promise<boolean>;
   onLogout: () => void;
 }
@@ -28,7 +26,6 @@ interface SettingsViewProps {
 export function SettingsView({
   roommates,
   myRoommateId,
-  onSelectMyId,
   onUpdateRoommateName,
   onLogout,
 }: SettingsViewProps) {
@@ -55,9 +52,13 @@ export function SettingsView({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const hasChanges = roommates.some(
-    (r) => names[r.id] !== undefined && names[r.id].trim() !== r.name
-  );
+  const myRoommate = roommates.find((r) => r.id === myRoommateId);
+  const hasChanges =
+    myRoommateId !== null &&
+    myRoommate !== undefined &&
+    names[myRoommateId] !== undefined &&
+    names[myRoommateId].trim().length > 0 &&
+    names[myRoommateId].trim() !== myRoommate.name;
 
   const handleNameChange = (id: number, newName: string) => {
     setNames((prev) => ({ ...prev, [id]: newName }));
@@ -67,25 +68,15 @@ export function SettingsView({
 
   const handleSaveNames = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hasChanges) return;
+    if (!hasChanges || myRoommateId === null) return;
     setSaving(true);
     setSavedSuccess(false);
     setSaveError(null);
 
     try {
-      let anyFailed = false;
-      for (const r of roommates) {
-        if (names[r.id] && names[r.id].trim() !== r.name) {
-          const ok = await onUpdateRoommateName(r.id, names[r.id].trim());
-          if (!ok) {
-            anyFailed = true;
-            break;
-          }
-        }
-      }
-
-      if (anyFailed) {
-        setSaveError("Errore durante il salvataggio dei nomi sul server. Riprova.");
+      const ok = await onUpdateRoommateName(myRoommateId, names[myRoommateId].trim());
+      if (!ok) {
+        setSaveError("Errore durante il salvataggio del nome sul server. Riprova.");
       } else {
         setSavedSuccess(true);
       }
@@ -119,66 +110,55 @@ export function SettingsView({
               Coinquilini
             </h3>
             <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
-              Profilo attivo su questo telefono e gestione dei 3 coinquilini
+              Visualizza i coinquilini della casa e modifica il tuo nome
             </p>
           </div>
         </div>
 
-        {/* Selezione profilo attivo */}
-        <div className="pt-1 space-y-2">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <UserCheck className="w-3.5 h-3.5 text-[#365672] dark:text-slate-400" />
-            <span>Chi usa questo dispositivo?</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
+        {/* Elenco coinquilini: modifica abilitata solo per il proprio profilo */}
+        <form onSubmit={handleSaveNames} className="space-y-3 pt-1">
+          <div className="space-y-2.5">
             {roommates.map((r) => {
-              const isSelected = myRoommateId === r.id;
+              const isMe = r.id === myRoommateId;
               return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => onSelectMyId(r.id)}
-                  className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center truncate outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
-                    isSelected
-                      ? "bg-[#365672] text-white border-transparent shadow-sm"
-                      : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750"
-                  }`}
-                >
-                  {r.name}
-                </button>
+                <div key={r.id} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
+                      Coinquilino {r.id + 1}
+                    </label>
+                    {isMe && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                        Il tuo profilo
+                      </span>
+                    )}
+                  </div>
+                  {isMe ? (
+                    <input
+                      type="text"
+                      value={names[r.id] ?? r.name}
+                      onChange={(e) => handleNameChange(r.id, e.target.value)}
+                      maxLength={30}
+                      required
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#365672] transition-colors"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={r.name}
+                      disabled
+                      readOnly
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-100/70 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-sm font-medium cursor-not-allowed select-none"
+                    />
+                  )}
+                </div>
               );
             })}
-          </div>
-        </div>
-
-        {/* Form modifica nomi coinquilini */}
-        <form onSubmit={handleSaveNames} className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Modifica nomi della casa
-          </div>
-
-          <div className="space-y-2.5">
-            {roommates.map((r) => (
-              <div key={r.id} className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">
-                  Coinquilino {r.id + 1}
-                </label>
-                <input
-                  type="text"
-                  value={names[r.id] ?? r.name}
-                  onChange={(e) => handleNameChange(r.id, e.target.value)}
-                  maxLength={30}
-                  required
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 text-slate-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-400 transition-colors"
-                />
-              </div>
-            ))}
           </div>
 
           {savedSuccess && (
             <div className="flex items-center gap-2 p-2.5 text-xs text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl">
               <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>Nomi aggiornati con successo!</span>
+              <span>Nome aggiornato con successo!</span>
             </div>
           )}
 
@@ -200,7 +180,7 @@ export function SettingsView({
                 <span>Salvataggio in corso...</span>
               </>
             ) : (
-              <span>Salva modifiche nomi</span>
+              <span>Salva il tuo nome</span>
             )}
           </button>
         </form>

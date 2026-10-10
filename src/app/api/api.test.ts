@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { LocalHouseRepository } from "@/lib/db/local";
 import { setTestRepository } from "@/lib/db";
 import { POST as loginRoute } from "./auth/login/route";
 import { GET as checkRoute } from "./auth/check/route";
+import { GET as authRoommatesRoute } from "./auth/roommates/route";
 import { GET as houseDataRoute } from "./house/data/route";
 import { POST as cleaningsRoute } from "./house/cleanings/route";
 import { POST as trashRoute } from "./house/trash/route";
@@ -29,11 +31,11 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("handles login verification and rate limiting (P0-02)", async () => {
-    // Tentativo fallito
+    // Tentativo fallito: codice errato
     const failedReq = new Request("http://localhost/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-real-ip": "10.0.0.1" },
-      body: JSON.stringify({ code: "wrong" }),
+      body: JSON.stringify({ code: "wrong", roommateId: 0 }),
     });
 
     const res1 = await loginRoute(failedReq);
@@ -45,7 +47,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
         new Request("http://localhost/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-real-ip": "10.0.0.1" },
-          body: JSON.stringify({ code: "wrong" }),
+          body: JSON.stringify({ code: "wrong", roommateId: 0 }),
         })
       );
     }
@@ -55,7 +57,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
       new Request("http://localhost/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-real-ip": "10.0.0.1" },
-        body: JSON.stringify({ code: "segreto123" }),
+        body: JSON.stringify({ code: "segreto123", roommateId: 0 }),
       })
     );
     expect(resLimited.status).toBe(429);
@@ -64,13 +66,16 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     const successReq = new Request("http://localhost/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-real-ip": "10.0.0.2" },
-      body: JSON.stringify({ code: "segreto123" }),
+      body: JSON.stringify({ code: "segreto123", roommateId: 0 }),
     });
 
     const resSuccess = await loginRoute(successReq);
     expect(resSuccess.status).toBe(200);
     const cookie = resSuccess.cookies.get(SESSION_COOKIE_NAME);
     expect(cookie?.value).toBeDefined();
+    const successData = await resSuccess.json();
+    expect(successData.roommateId).toBe(0);
+    expect(successData.name).toBe("Coinquilino 1");
   });
 
   it("blocks unauthenticated access to house data and history", async () => {
@@ -89,7 +94,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("rejects cleaning mutations on past or future weeks (P1-03)", async () => {
-    const token = createSessionToken();
+    const token = createSessionToken(0);
     const authHeaders = {
       "Content-Type": "application/json",
       Cookie: `${SESSION_COOKIE_NAME}=${token}`,
@@ -114,22 +119,22 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("strictly rejects cleaning complete or decline if not performed by current assignee (P1-02)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
     const currentWeekKey = getWeekKey(new Date());
     const week = await repo.getWeekState(currentWeekKey);
     const task = week.cleanings[0];
     const assignedId = task.assignedTo!;
     const otherId = (assignedId + 1) % 3;
 
+    const tokenOther = createSessionToken(otherId);
+    const authHeadersOther = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${tokenOther}`,
+    };
+
     // Roommate 'otherId' tenta di completare il task assegnato a 'assignedId'
     const wrongCompleteReq = new Request("http://localhost/api/house/cleanings", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeadersOther,
       body: JSON.stringify({
         action: "complete",
         weekKey: currentWeekKey,
@@ -143,7 +148,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     // Roommate 'otherId' tenta di rinunciare al task assegnato a 'assignedId'
     const wrongDeclineReq = new Request("http://localhost/api/house/cleanings", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeadersOther,
       body: JSON.stringify({
         action: "decline",
         weekKey: currentWeekKey,
@@ -156,17 +161,14 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("enforces single open trash task and rejects actions from non-assignees (P1-01, P1-02)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
     // 1. Segnala spazzatura piena
     const report1 = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(0)}`,
+        },
         body: JSON.stringify({ action: "report" }),
       })
     );
@@ -176,7 +178,10 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     const report2 = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(0)}`,
+        },
         body: JSON.stringify({ action: "report" }),
       })
     );
@@ -190,7 +195,10 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     const wrongComplete = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(otherId)}`,
+        },
         body: JSON.stringify({ action: "complete", roommateId: otherId }),
       })
     );
@@ -200,7 +208,10 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     const correctComplete = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(assignedId)}`,
+        },
         body: JSON.stringify({ action: "complete", roommateId: assignedId }),
       })
     );
@@ -208,7 +219,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("supports pagination in history API (P1-07)", async () => {
-    const token = createSessionToken();
+    const token = createSessionToken(0);
     const authHeaders = {
       "Content-Type": "application/json",
       Cookie: `${SESSION_COOKIE_NAME}=${token}`,
@@ -225,16 +236,16 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("prevents lost updates and handles concurrent completion, decline, and absence (P1-02)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
     const currentWeekKey = getWeekKey(new Date());
     const week = await repo.getWeekState(currentWeekKey);
     const task = week.cleanings[0];
     const assignedId = task.assignedTo!;
+
+    const token = createSessionToken(assignedId);
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
 
     // 1. Primo completamento riesce
     const completeReq1 = new Request("http://localhost/api/house/cleanings", {
@@ -286,17 +297,17 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("prevents completed trash from ever being reopened by concurrent reassignment or decline (P1-01)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
+    const token0 = createSessionToken(0);
+    const authHeaders0 = {
       "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+      Cookie: `${SESSION_COOKIE_NAME}=${token0}`,
     };
 
     // 1. Segnala spazzatura (assegnata a Roommate 0)
     const reportRes = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeaders0,
         body: JSON.stringify({ action: "report" }),
       })
     );
@@ -310,7 +321,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     const completeRes = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeaders0,
         body: JSON.stringify({ action: "complete", roommateId: 0 }),
       })
     );
@@ -319,15 +330,14 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     // Ora il compito risulta completato e nessun compito risulta aperto
     expect(await repo.getOpenTrashTask()).toBeNull();
 
-    // 3. Una richiesta concorrente basata su dati precedenti tenta di rinunciare o riassegnare il compito
+    // 3. Una richiesta concorrente tenta di rinunciare
     const declineRes = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeaders0,
         body: JSON.stringify({ action: "decline", roommateId: 0 }),
       })
     );
-    // Non trovando compiti aperti (o tentando un aggiornamento con status = open su un task completato), la richiesta viene respinta
     expect([404, 409]).toContain(declineRes.status);
 
     // 4. Tentativo diretto di updateTrashTask condizionale sul task completato deve fallire
@@ -355,10 +365,10 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("prevents completing an unassigned cleaning if assigned_to is no longer null (P1-02)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
+    const token1 = createSessionToken(1);
+    const authHeaders1 = {
       "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+      Cookie: `${SESSION_COOKIE_NAME}=${token1}`,
     };
 
     const currentWeekKey = getWeekKey(new Date());
@@ -370,20 +380,17 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     task.assignedToName = null;
     await repo.updateCleaningTask(task);
 
-    // 2. Simula race condition concorrente: la route legge il task senza assegnatario (assignedTo: null),
-    // ma prima che chiami updateCleaningTask un'operazione concorrente assegna il compito a Roommate 2
+    // 2. Simula race condition concorrente
     const originalGetWeekState = repo.getWeekState.bind(repo);
     let readCount = 0;
     const spy = vi.spyOn(repo, "getWeekState").mockImplementation(async (key) => {
       readCount++;
       const state = await originalGetWeekState(key);
       if (readCount === 1) {
-        // Restituisce alla route iniziale un clone con assignedTo: null
         const clonedCleanings = state.cleanings.map((c) => ({ ...c }));
         clonedCleanings[0].assignedTo = null;
         clonedCleanings[0].assignedToName = null;
 
-        // Nel DB, un'operazione concorrente ha appena assegnato il compito a Roommate 2
         (repo as any).data.cleanings[key][0].assignedTo = 2;
         (repo as any).data.cleanings[key][0].assignedToName = "Coinquilino 3";
 
@@ -392,12 +399,9 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
       return state;
     });
 
-
-    // Roommate 1 tenta di completare il compito credendo che sia ancora privo di incaricato
-    // La route verifica condizionalmente { isCompleted: false, assignedTo: null } e riceve 409 Conflict
     const completeReq = new Request("http://localhost/api/house/cleanings", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeaders1,
       body: JSON.stringify({
         action: "complete",
         weekKey: currentWeekKey,
@@ -413,7 +417,6 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
 
     spy.mockRestore();
 
-    // 3. Verifica diretta su repository: updateCleaningTask con condition assignedTo: null fallisce se è 2
     const directUpdate = await repo.updateCleaningTask(
       { ...task, isCompleted: true },
       { isCompleted: false, assignedTo: null }
@@ -421,24 +424,20 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(directUpdate).toBe(false);
   });
 
-
   it("ensures cascading declines never assign a cleaning to a declined roommate and results in null when all decline (P1-02)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
     const currentWeekKey = getWeekKey(new Date());
     const week = await repo.getWeekState(currentWeekKey);
     const task = week.cleanings[0]; // Area 0 assegnata a Roommate 0
     expect(task.assignedTo).toBe(0);
 
-    // 1. Roommate 0 rinuncia all'area 0
+    // 1. Roommate 0 rinuncia all'area 0 con la propria sessione
     const declineRes1 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(0)}`,
+        },
         body: JSON.stringify({
           action: "decline",
           weekKey: currentWeekKey,
@@ -449,17 +448,19 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     );
     expect(declineRes1.status).toBe(200);
 
-    // L'area 0 viene riassegnata a Roommate 1, con declinedBy: [0]
     let currentWeek = await repo.getWeekState(currentWeekKey);
     let area0 = currentWeek.cleanings.find((t) => t.id === task.id)!;
     expect(area0.assignedTo).toBe(1);
     expect(area0.declinedBy).toEqual([0]);
 
-    // 2. Roommate 1 rinuncia
+    // 2. Roommate 1 rinuncia con la propria sessione
     const declineRes2 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(1)}`,
+        },
         body: JSON.stringify({
           action: "decline",
           weekKey: currentWeekKey,
@@ -475,11 +476,14 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(area0.assignedTo).toBe(2);
     expect(area0.declinedBy).toEqual([0, 1]);
 
-    // 3. Roommate 2 rinuncia
+    // 3. Roommate 2 rinuncia con la propria sessione
     const declineRes3 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(2)}`,
+        },
         body: JSON.stringify({
           action: "decline",
           weekKey: currentWeekKey,
@@ -490,7 +494,6 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     );
     expect(declineRes3.status).toBe(200);
 
-    // Con tutti e tre che hanno rinunciato, l'attività DEVE essere null
     currentWeek = await repo.getWeekState(currentWeekKey);
     area0 = currentWeek.cleanings.find((t) => t.id === task.id)!;
     expect(area0.assignedTo).toBeNull();
@@ -498,16 +501,16 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("allows undoing cleaning completion in current week by the profile that completed it, maintaining consistent history", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
     const currentWeekKey = getWeekKey(new Date());
     const week = await repo.getWeekState(currentWeekKey);
     const task = week.cleanings[0];
     const assignedId = task.assignedTo!;
+
+    const token = createSessionToken(assignedId);
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
 
     // 1. Completa il compito
     const completeRes = await cleaningsRoute(
@@ -524,7 +527,6 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     );
     expect(completeRes.status).toBe(200);
 
-    // Verifica che sia completato e presente nello storico
     let updatedWeek = await repo.getWeekState(currentWeekKey);
     let updatedTask = updatedWeek.cleanings.find((t) => t.id === task.id)!;
     expect(updatedTask.isCompleted).toBe(true);
@@ -555,7 +557,6 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     );
     expect(undoRes.status).toBe(200);
 
-    // 3. Verifica che il compito sia ripristinato allo stato non completato e dati di completamento cancellati
     updatedWeek = await repo.getWeekState(currentWeekKey);
     updatedTask = updatedWeek.cleanings.find((t) => t.id === task.id)!;
     expect(updatedTask.isCompleted).toBe(false);
@@ -563,7 +564,6 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(updatedTask.completedByName).toBeNull();
     expect(updatedTask.assignedTo).toBe(assignedId);
 
-    // 4. Verifica che nello storico non compaia più
     historyRes = await historyRoute(
       new Request("http://localhost/api/house/history", {
         headers: authHeaders,
@@ -575,22 +575,22 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("verifies server-side authorization and error cases for cleaning undo (profile mismatch, past week, already undone)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
     const currentWeekKey = getWeekKey(new Date());
     const week = await repo.getWeekState(currentWeekKey);
     const task = week.cleanings[1];
     const assignedId = task.assignedTo!;
 
+    const tokenAssigned = createSessionToken(assignedId);
+    const authHeadersAssigned = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${tokenAssigned}`,
+    };
+
     // Completa il compito
     await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersAssigned,
         body: JSON.stringify({
           action: "complete",
           weekKey: currentWeekKey,
@@ -602,10 +602,16 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
 
     // 1. Profilo non corrispondente riceve 403 Forbidden
     const otherId = (assignedId + 1) % 3;
+    const tokenOther = createSessionToken(otherId);
+    const authHeadersOther = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${tokenOther}`,
+    };
+
     const wrongProfileRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersOther,
         body: JSON.stringify({
           action: "uncomplete",
           weekKey: currentWeekKey,
@@ -622,7 +628,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     const pastWeekRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersAssigned,
         body: JSON.stringify({
           action: "uncomplete",
           weekKey: "2026-01-05",
@@ -633,11 +639,11 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     );
     expect(pastWeekRes.status).toBe(400);
 
-    // 3. Annullamento riuscito
+    // 3. Annullamento riuscito con profilo legittimo
     const validUndo = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersAssigned,
         body: JSON.stringify({
           action: "uncomplete",
           weekKey: currentWeekKey,
@@ -652,7 +658,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     const repeatedUndo = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersAssigned,
         body: JSON.stringify({
           action: "uncomplete",
           weekKey: currentWeekKey,
@@ -665,10 +671,10 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("handles concurrent uncomplete requests and restores unassigned tasks correctly (assignedTo: null)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
+    const token0 = createSessionToken(0);
+    const authHeaders0 = {
       "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+      Cookie: `${SESSION_COOKIE_NAME}=${token0}`,
     };
 
     const currentWeekKey = getWeekKey(new Date());
@@ -681,11 +687,11 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     task.declinedBy = [];
     await repo.updateCleaningTask(task);
 
-    // 2. Un coinquilino completa il compito
+    // 2. Coinquilino 0 completa il compito
     const completeRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeaders0,
         body: JSON.stringify({
           action: "complete",
           weekKey: currentWeekKey,
@@ -694,14 +700,12 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
         }),
       })
     );
-    // Completa riuscita (o con volunteer)
     expect(completeRes.status).toBe(200);
 
-    // 3. Simula richieste concorrenti di annullamento:
-    // La prima richiesta deve riuscire, la seconda simultanea riceve 409 Conflict
+    // 3. Simula richieste concorrenti di annullamento
     const undoReq1 = new Request("http://localhost/api/house/cleanings", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeaders0,
       body: JSON.stringify({
         action: "uncomplete",
         weekKey: currentWeekKey,
@@ -711,7 +715,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     });
     const undoReq2 = new Request("http://localhost/api/house/cleanings", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeaders0,
       body: JSON.stringify({
         action: "uncomplete",
         weekKey: currentWeekKey,
@@ -728,7 +732,6 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(statuses).toContain(200);
     expect(statuses).toContain(409);
 
-    // 4. Verifica che il compito originariamente senza incaricato torni con assignedTo = null
     const finalWeek = await repo.getWeekState(currentWeekKey);
     const finalTask = finalWeek.cleanings.find((t) => t.id === task.id)!;
     expect(finalTask.isCompleted).toBe(false);
@@ -740,22 +743,22 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("authorizes uncomplete via stable roommate ID even if roommate changes name or shares identical name (Bug 1)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
     const currentWeekKey = getWeekKey(new Date());
     const week = await repo.getWeekState(currentWeekKey);
     const task = week.cleanings[1];
     const assignedId = task.assignedTo!;
 
+    const tokenAssigned = createSessionToken(assignedId);
+    const authHeadersAssigned = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${tokenAssigned}`,
+    };
+
     // 1. Il coinquilino completa il compito
     const completeRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersAssigned,
         body: JSON.stringify({
           action: "complete",
           weekKey: currentWeekKey,
@@ -771,10 +774,14 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
 
     // 3. Un altro coinquilino con ID diverso tenta di annullare -> 403 Forbidden
     const otherId = (assignedId + 1) % 3;
+    const tokenOther = createSessionToken(otherId);
     const unauthorizedRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${tokenOther}`,
+        },
         body: JSON.stringify({
           action: "uncomplete",
           weekKey: currentWeekKey,
@@ -785,11 +792,11 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     );
     expect(unauthorizedRes.status).toBe(403);
 
-    // 4. Il coinquilino originale con ID stabile (anche se ha cambiato nome!) annulla con successo
+    // 4. Il coinquilino originale con ID stabile annulla con successo
     const authorizedRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersAssigned,
         body: JSON.stringify({
           action: "uncomplete",
           weekKey: currentWeekKey,
@@ -805,22 +812,19 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
   it("preserves previous reassignment from decline when uncompleting (Bug 2)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
     const currentWeekKey = getWeekKey(new Date());
     const week = await repo.getWeekState(currentWeekKey);
     const task = week.cleanings[0];
     const originalAssignee = task.assignedTo!;
 
-    // 1. L'assegnatario originale rinuncia -> il compito viene riassegnato a un sostituto
+    // 1. L'assegnatario originale rinuncia con la propria sessione
     const declineRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(originalAssignee)}`,
+        },
         body: JSON.stringify({
           action: "decline",
           weekKey: currentWeekKey,
@@ -836,11 +840,14 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(substituteId).not.toBe(originalAssignee);
     expect(declinedTask.declinedBy).toContain(originalAssignee);
 
-    // 2. Il sostituto completa il compito
+    // 2. Il sostituto completa il compito con la propria sessione
     const completeRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(substituteId)}`,
+        },
         body: JSON.stringify({
           action: "complete",
           weekKey: currentWeekKey,
@@ -851,11 +858,14 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     );
     expect(completeRes.status).toBe(200);
 
-    // 3. Il sostituto annulla il completamento
+    // 3. Il sostituto annulla il completamento con la propria sessione
     const undoRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(substituteId)}`,
+        },
         body: JSON.stringify({
           action: "uncomplete",
           weekKey: currentWeekKey,
@@ -875,10 +885,8 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 });
 
-describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [LocalHouseRepository]", () => {
+describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
   let repo: LocalHouseRepository;
-  let authHeaders: Record<string, string>;
-  const currentWeekKey = getWeekKey(new Date());
 
   beforeEach(() => {
     if (fs.existsSync(TEST_DB)) {
@@ -888,12 +896,225 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     setTestRepository(repo);
     process.env.SESSION_SECRET = "super-secret-key-that-is-at-least-32-chars-long!";
     process.env.HOUSE_SECRET_CODE = "segreto123";
+  });
 
-    const token = createSessionToken();
-    authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+  it("recupera l'elenco dei coinquilini per la schermata di login da GET /api/auth/roommates", async () => {
+    const res = await authRoommatesRoute();
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.roommates).toBeDefined();
+    expect(Array.isArray(data.roommates)).toBe(true);
+    expect(data.roommates.length).toBe(3);
+    expect(data.roommates[0]).toEqual({ id: 0, name: "Coinquilino 1" });
+    expect(data.roommates[1]).toEqual({ id: 1, name: "Coinquilino 2" });
+    expect(data.roommates[2]).toEqual({ id: 2, name: "Coinquilino 3" });
+  });
+
+  it("richiede sia il codice casa sia il roommateId al login e salva il profilo nella sessione", async () => {
+    // Mancanza di roommateId
+    const reqNoProfile = new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "segreto123" }),
+    });
+    const resNoProfile = await loginRoute(reqNoProfile);
+    expect(resNoProfile.status).toBe(400);
+
+    // ID coinquilino non valido (es. 5)
+    const reqInvalidProfile = new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "segreto123", roommateId: 5 }),
+    });
+    const resInvalidProfile = await loginRoute(reqInvalidProfile);
+    expect(resInvalidProfile.status).toBe(400);
+
+    // Login valido con coinquilino 2
+    const reqValid = new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "segreto123", roommateId: 2 }),
+    });
+    const resValid = await loginRoute(reqValid);
+    expect(resValid.status).toBe(200);
+    const dataValid = await resValid.json();
+    expect(dataValid.roommateId).toBe(2);
+    expect(dataValid.name).toBe("Coinquilino 3");
+
+    const cookie = resValid.cookies.get(SESSION_COOKIE_NAME);
+    expect(cookie?.value).toBeDefined();
+
+    // Verifica con GET /api/auth/check
+    const checkReq = new Request("http://localhost/api/auth/check", {
+      headers: { Cookie: `${SESSION_COOKIE_NAME}=${cookie!.value}` },
+    });
+    const checkRes = await checkRoute(checkReq);
+    expect(checkRes.status).toBe(200);
+    const checkData = await checkRes.json();
+    expect(checkData.authenticated).toBe(true);
+    expect(checkData.roommateId).toBe(2);
+
+    // Verifica con GET /api/house/data
+    const dataReq = new Request("http://localhost/api/house/data", {
+      headers: { Cookie: `${SESSION_COOKIE_NAME}=${cookie!.value}` },
+    });
+    const dataRes = await houseDataRoute(dataReq);
+    expect(dataRes.status).toBe(200);
+    const houseData = await dataRes.json();
+    expect(houseData.myRoommateId).toBe(2);
+  });
+
+  it("invalida rigorosamente le vecchie sessioni prive di roommateId richiedendo nuovo accesso (401)", async () => {
+    // Genera un vecchio token valido per HMAC ma privo del campo roommateId
+    const oldPayload = {
+      houseId: "default",
+      authenticatedAt: Date.now(),
     };
+    const payloadB64 = Buffer.from(JSON.stringify(oldPayload)).toString("base64url");
+    const signature = crypto
+      .createHmac("sha256", process.env.SESSION_SECRET!)
+      .update(payloadB64)
+      .digest("base64url");
+    const legacyToken = `${payloadB64}.${signature}`;
+    const legacyHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${legacyToken}`,
+    };
+
+    // 1. checkRoute indica non autenticato
+    const checkRes = await checkRoute(
+      new Request("http://localhost/api/auth/check", { headers: legacyHeaders })
+    );
+    expect((await checkRes.json()).authenticated).toBe(false);
+
+    // 2. houseDataRoute restituisce 401
+    const dataRes = await houseDataRoute(
+      new Request("http://localhost/api/house/data", { headers: legacyHeaders })
+    );
+    expect(dataRes.status).toBe(401);
+
+    // 3. cleaningsRoute restituisce 401
+    const cleaningsRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: legacyHeaders,
+        body: JSON.stringify({ action: "complete" }),
+      })
+    );
+    expect(cleaningsRes.status).toBe(401);
+
+    // 4. trashRoute restituisce 401
+    const trashRes = await trashRoute(
+      new Request("http://localhost/api/house/trash", {
+        method: "POST",
+        headers: legacyHeaders,
+        body: JSON.stringify({ action: "report" }),
+      })
+    );
+    expect(trashRes.status).toBe(401);
+
+    // 5. roommatesRoute restituisce 401
+    const roommatesRes = await roommatesRoute(
+      new Request("http://localhost/api/house/roommates", {
+        method: "POST",
+        headers: legacyHeaders,
+        body: JSON.stringify({ id: 0, name: "Test" }),
+      })
+    );
+    expect(roommatesRes.status).toBe(401);
+
+    // 6. historyRoute restituisce 401
+    const historyRes = await historyRoute(
+      new Request("http://localhost/api/house/history", { headers: legacyHeaders })
+    );
+    expect(historyRes.status).toBe(401);
+  });
+
+  it("rifiuta con 403 Forbidden tentativi di impersonificazione o modifica di altri coinquilini", async () => {
+    // Sessione collegata al coinquilino 0
+    const token0 = createSessionToken(0);
+    const authHeaders0 = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token0}`,
+    };
+
+    // 1. Modifica nome: Coinquilino 0 tenta di rinominare Coinquilino 1 -> 403
+    const editOtherNameRes = await roommatesRoute(
+      new Request("http://localhost/api/house/roommates", {
+        method: "POST",
+        headers: authHeaders0,
+        body: JSON.stringify({ id: 1, name: "Intruso" }),
+      })
+    );
+    expect(editOtherNameRes.status).toBe(403);
+    const editOtherData = await editOtherNameRes.json();
+    expect(editOtherData.error).toContain("esclusivamente il tuo profilo");
+
+    // 2. Modifica nome: Coinquilino 0 rinomina se stesso -> 200 OK
+    const editOwnNameRes = await roommatesRoute(
+      new Request("http://localhost/api/house/roommates", {
+        method: "POST",
+        headers: authHeaders0,
+        body: JSON.stringify({ id: 0, name: "Alessandro" }),
+      })
+    );
+    expect(editOwnNameRes.status).toBe(200);
+
+    // 3. Pulizie: Coinquilino 0 invia richiesta specificando roommateId = 1 nel body -> 403
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[0];
+
+    const mismatchedCleaningRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders0,
+        body: JSON.stringify({
+          action: "complete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: 1,
+        }),
+      })
+    );
+    expect(mismatchedCleaningRes.status).toBe(403);
+    const cleanErr = await mismatchedCleaningRes.json();
+    expect(cleanErr.error).toContain("Non puoi eseguire azioni per conto di un altro coinquilino");
+
+    // 4. Spazzatura: Coinquilino 0 invia richiesta specificando roommateId = 1 nel body -> 403
+    const mismatchedTrashRes = await trashRoute(
+      new Request("http://localhost/api/house/trash", {
+        method: "POST",
+        headers: authHeaders0,
+        body: JSON.stringify({
+          action: "decline",
+          roommateId: 1,
+        }),
+      })
+    );
+    expect(mismatchedTrashRes.status).toBe(403);
+    const trashErr = await mismatchedTrashRes.json();
+    expect(trashErr.error).toContain("Non puoi eseguire azioni per conto di un altro coinquilino");
+  });
+});
+
+describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [LocalHouseRepository]", () => {
+  let repo: LocalHouseRepository;
+  const currentWeekKey = getWeekKey(new Date());
+
+  const authHeadersFor = (roommateId: number) => ({
+    "Content-Type": "application/json",
+    Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(roommateId)}`,
+  });
+
+  beforeEach(() => {
+    if (fs.existsSync(TEST_DB)) {
+      fs.unlinkSync(TEST_DB);
+    }
+    repo = new LocalHouseRepository(TEST_DB);
+    setTestRepository(repo);
+    process.env.SESSION_SECRET = "super-secret-key-that-is-at-least-32-chars-long!";
+    process.env.HOUSE_SECRET_CODE = "segreto123";
   });
 
   // Scenario 1: Tutti rinunciano a una pulizia → attività senza incaricato → uno cambia idea → prende l'incarico → completa.
@@ -906,7 +1127,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const dec1 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(firstAssignee),
         body: JSON.stringify({ action: "decline", weekKey: currentWeekKey, taskId: task.id, roommateId: firstAssignee }),
       })
     );
@@ -917,7 +1138,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const dec2 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(secondAssignee),
         body: JSON.stringify({ action: "decline", weekKey: currentWeekKey, taskId: task.id, roommateId: secondAssignee }),
       })
     );
@@ -928,7 +1149,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const dec3 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(thirdAssignee),
         body: JSON.stringify({ action: "decline", weekKey: currentWeekKey, taskId: task.id, roommateId: thirdAssignee }),
       })
     );
@@ -941,21 +1162,21 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const claimRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(firstAssignee),
         body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: firstAssignee }),
       })
     );
     expect(claimRes.status).toBe(200);
     const claimedTask = (await claimRes.json()).week.cleanings.find((t: any) => t.id === task.id);
     expect(claimedTask.assignedTo).toBe(firstAssignee);
-    expect(claimedTask.declinedBy).not.toContain(firstAssignee); // rimossa rinuncia precedente
+    expect(claimedTask.declinedBy).not.toContain(firstAssignee);
     expect(claimedTask.isCompleted).toBe(false);
 
     // 5. Completa l'attività («Ho pulito»)
     const completeRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(firstAssignee),
         body: JSON.stringify({ action: "complete", weekKey: currentWeekKey, taskId: task.id, roommateId: firstAssignee }),
       })
     );
@@ -971,21 +1192,21 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const repRes = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(0),
         body: JSON.stringify({ action: "report" }),
       })
     );
     expect(repRes.status).toBe(200);
     const repData = await repRes.json();
     let openTask = repData.openTrashTask;
-    const initialQueue = repData.trashQueue; // [0, 1, 2]
+    const initialQueue = repData.trashQueue;
     expect(openTask.assignedTo).toBe(0);
 
-    // 2. Tutti e 3 rinunciano in sequenza
+    // 2. Tutti e 3 rinunciano in sequenza ciascuno con la propria sessione
     const dec0 = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(0),
         body: JSON.stringify({ action: "decline", roommateId: 0 }),
       })
     );
@@ -994,7 +1215,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const dec1 = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(1),
         body: JSON.stringify({ action: "decline", roommateId: 1 }),
       })
     );
@@ -1003,7 +1224,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const dec2 = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(2),
         body: JSON.stringify({ action: "decline", roommateId: 2 }),
       })
     );
@@ -1012,14 +1233,13 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const unassignedTrash = dec2Json.openTrashTask;
     expect(unassignedTrash.assignedTo).toBeNull();
     expect(unassignedTrash.declinedBy).toEqual([0, 1, 2]);
-    // La coda NON deve essere modificata dalle rinunce
     expect(dec2Json.trashQueue).toEqual(initialQueue);
 
     // 3. Coinquilino 1 cambia idea e prende in carico («Me ne occupo io»)
     const claimRes = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(1),
         body: JSON.stringify({ action: "claim", roommateId: 1 }),
       })
     );
@@ -1027,23 +1247,21 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const claimData = await claimRes.json();
     const claimedTrash = claimData.openTrashTask;
     expect(claimedTrash.assignedTo).toBe(1);
-    expect(claimedTrash.declinedBy).not.toContain(1); // 1 rimosso da declinedBy
+    expect(claimedTrash.declinedBy).not.toContain(1);
     expect(claimedTrash.status).toBe("open");
-    // Coda NON toccata al momento del claim
     expect(claimData.trashQueue).toEqual(initialQueue);
 
     // 4. Coinquilino 1 completa («Ho buttato la spazzatura»)
     const compRes = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(1),
         body: JSON.stringify({ action: "complete", roommateId: 1 }),
       })
     );
     expect(compRes.status).toBe(200);
     const compData = await compRes.json();
     const finalQueue = compData.trashQueue;
-    // 1 deve essere passato in fondo alla coda equa: [0, 2, 1]
     expect(finalQueue).toEqual([0, 2, 1]);
     expect(compData.openTrashTask).toBeNull();
   });
@@ -1054,15 +1272,14 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const task = week.cleanings[2];
     await repo.updateCleaningTask({ ...task, assignedTo: null, assignedToName: null, declinedBy: [0, 1, 2] });
 
-    // Due richieste di claim contemporanee per la stessa pulizia
     const reqA = new Request("http://localhost/api/house/cleanings", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeadersFor(0),
       body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: 0 }),
     });
     const reqB = new Request("http://localhost/api/house/cleanings", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeadersFor(1),
       body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: 1 }),
     });
 
@@ -1071,7 +1288,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const statuses = [resA.status, resB.status].sort();
     expect(statuses).toEqual([200, 409]);
 
-    // Stessa verifica atomica concorrente per la spazzatura
+    // Stessa verifica per la spazzatura
     await repo.createTrashTask({
       id: "trash-concurrent",
       status: "open",
@@ -1084,12 +1301,12 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
 
     const trashReqA = new Request("http://localhost/api/house/trash", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeadersFor(0),
       body: JSON.stringify({ action: "claim", roommateId: 0 }),
     });
     const trashReqB = new Request("http://localhost/api/house/trash", {
       method: "POST",
-      headers: authHeaders,
+      headers: authHeadersFor(1),
       body: JSON.stringify({ action: "claim", roommateId: 1 }),
     });
 
@@ -1108,7 +1325,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const claimCleaningRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(otherId),
         body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: otherId }),
       })
     );
@@ -1128,7 +1345,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const claimTrashRes = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(1),
         body: JSON.stringify({ action: "claim", roommateId: 1 }),
       })
     );
@@ -1141,20 +1358,18 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const task = week.cleanings[0];
     await repo.updateCleaningTask({ ...task, assignedTo: null, assignedToName: null, declinedBy: [0, 1, 2] });
 
-    // Presa in carico
     await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(0),
         body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: 0 }),
       })
     );
 
-    // Controlla lo storico: l'attività in corso presa in carico NON deve figurare come completata
     const histRes = await historyRoute(
       new Request("http://localhost/api/house/history", {
         method: "GET",
-        headers: authHeaders,
+        headers: authHeadersFor(0),
       })
     );
     expect(histRes.status).toBe(200);
@@ -1173,7 +1388,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(0),
         body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: 0 }),
       })
     );
@@ -1182,7 +1397,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const compRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(0),
         body: JSON.stringify({ action: "complete", weekKey: currentWeekKey, taskId: task.id, roommateId: 0 }),
       })
     );
@@ -1192,7 +1407,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const undoRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
-        headers: authHeaders,
+        headers: authHeadersFor(0),
         body: JSON.stringify({ action: "uncomplete", weekKey: currentWeekKey, taskId: task.id, roommateId: 0 }),
       })
     );
@@ -1201,10 +1416,6 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     const restoredTask = restoredWeek.cleanings.find((t: any) => t.id === task.id);
     expect(restoredTask.isCompleted).toBe(false);
     expect(restoredTask.completedBy).toBeNull();
-    // L'assegnatario resta 0
     expect(restoredTask.assignedTo).toBe(0);
   });
 });
-
-
-

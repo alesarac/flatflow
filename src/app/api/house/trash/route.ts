@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isRequestAuthenticated } from "@/lib/auth/server";
+import { getRequestSession } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
 import {
   reportTrash,
@@ -8,8 +8,8 @@ import {
 } from "@/lib/domain/logic";
 
 export async function POST(req: Request) {
-  const authenticated = await isRequestAuthenticated(req);
-  if (!authenticated) {
+  const session = await getRequestSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Accesso non autorizzato" }, { status: 401 });
   }
 
@@ -20,7 +20,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Corpo della richiesta non valido" }, { status: 400 });
   }
 
-  const { action, roommateId } = body;
+  const { action, roommateId: requestedRoommateId } = body;
+
+  // Sicurezza: se il client invia un ID diverso da quello in sessione, rifiuta con HTTP 403
+  if (requestedRoommateId !== undefined && requestedRoommateId !== session.roommateId) {
+    return NextResponse.json(
+      { error: "Non puoi eseguire azioni per conto di un altro coinquilino." },
+      { status: 403 }
+    );
+  }
+
+  // L'ID del coinquilino è ricavato direttamente dalla sessione firmata
+  const roommateId = session.roommateId;
   const repo = getRepository();
 
   const [queue, openTask, roommates] = await Promise.all([
@@ -52,10 +63,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nessun incarico di spazzatura aperto" }, { status: 404 });
     }
 
-    if (typeof roommateId !== "number") {
-      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
-    }
-
     // P1-02: Solo l'attuale incaricato può rinunciare
     if (openTask.assignedTo !== roommateId) {
       return NextResponse.json(
@@ -80,14 +87,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, openTrashTask: updatedTask, trashQueue: queue });
   }
 
-
   if (action === "complete") {
     if (!openTask) {
       return NextResponse.json({ error: "Nessun incarico di spazzatura aperto" }, { status: 404 });
-    }
-
-    if (typeof roommateId !== "number") {
-      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
     }
 
     const roommate = roommates.find((r) => r.id === roommateId);
@@ -136,10 +138,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (typeof roommateId !== "number") {
-      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
-    }
-
     const roommate = roommates.find((r) => r.id === roommateId);
     if (!roommate) {
       return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
@@ -161,7 +159,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, openTrashTask: updatedTask, trashQueue: queue });
   }
-
 
   return NextResponse.json({ error: "Azione non riconosciuta" }, { status: 400 });
 }

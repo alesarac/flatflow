@@ -1,14 +1,13 @@
 "use client";
 
 import { Roommate } from "../lib/domain/types";
-import { User, ChevronDown } from "lucide-react";
+import { User } from "lucide-react";
 
 interface HeaderProps {
   activeRoommate?: Roommate;
-  onOpenPicker: () => void;
 }
 
-export function Header({ activeRoommate, onOpenPicker }: HeaderProps) {
+export function Header({ activeRoommate }: HeaderProps) {
   return (
     <header className="border-b border-slate-100 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-30 transition-colors pt-safe">
       <div className="max-w-md mx-auto px-4 pb-3 flex items-center justify-between">
@@ -18,17 +17,12 @@ export function Header({ activeRoommate, onOpenPicker }: HeaderProps) {
           </span>
         </div>
 
-        <button
-          onClick={onOpenPicker}
-          type="button"
-          className="flex items-center gap-2 py-1.5 px-3.5 rounded-full text-xs font-semibold border transition-all active:scale-95 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 bg-white border-slate-200/80 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-750 shadow-sm"
-        >
+        <div className="flex items-center gap-2 py-1.5 px-3.5 rounded-full text-xs font-semibold border bg-white border-slate-200/80 dark:bg-slate-800 dark:border-slate-700 shadow-sm">
           <User className="w-3.5 h-3.5 text-[#4355EC] dark:text-indigo-400" />
           <span className="max-w-[120px] truncate text-slate-700 dark:text-slate-200">
-            {activeRoommate ? activeRoommate.name : "Chi sei?"}
+            {activeRoommate ? activeRoommate.name : "Coinquilino"}
           </span>
-          <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-        </button>
+        </div>
       </div>
     </header>
   );

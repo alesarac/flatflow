@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isRequestAuthenticated } from "@/lib/auth/server";
+import { getRequestSession } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
 import {
   claimCleaningTask,
@@ -10,8 +10,8 @@ import {
 import { CleaningTask } from "@/lib/domain/types";
 
 export async function POST(req: Request) {
-  const authenticated = await isRequestAuthenticated(req);
-  if (!authenticated) {
+  const session = await getRequestSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Accesso non autorizzato" }, { status: 401 });
   }
 
@@ -22,7 +22,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Corpo della richiesta non valido" }, { status: 400 });
   }
 
-  const { action, weekKey, taskId, roommateId } = body;
+  const { action, weekKey, taskId, roommateId: requestedRoommateId } = body;
+
+  // Sicurezza: se il client invia un ID diverso da quello in sessione, rifiuta con HTTP 403
+  if (requestedRoommateId !== undefined && requestedRoommateId !== session.roommateId) {
+    return NextResponse.json(
+      { error: "Non puoi eseguire azioni per conto di un altro coinquilino." },
+      { status: 403 }
+    );
+  }
+
+  // L'ID del coinquilino è ricavato direttamente e con certezza dalla sessione firmata
+  const roommateId = session.roommateId;
   const repo = getRepository();
 
   // P1-03: È consentito modificare ESCLUSIVAMENTE la settimana corrente
@@ -40,10 +51,6 @@ export async function POST(req: Request) {
   ]);
 
   if (action === "complete") {
-    if (typeof roommateId !== "number") {
-      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
-    }
-
     const roommate = roommates.find((r) => r.id === roommateId);
     if (!roommate) {
       return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
@@ -95,7 +102,6 @@ export async function POST(req: Request) {
       assignedTo: task.assignedTo,
     });
 
-
     if (!updated) {
       return NextResponse.json(
         { error: "L'attività è già stata completata o modificata da un'altra operazione." },
@@ -108,10 +114,6 @@ export async function POST(req: Request) {
   }
 
   if (action === "decline") {
-    if (typeof roommateId !== "number") {
-      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
-    }
-
     const task = weekState.cleanings.find((t) => t.id === taskId);
     if (!task) {
       return NextResponse.json({ error: "Attività non trovata" }, { status: 404 });
@@ -153,10 +155,6 @@ export async function POST(req: Request) {
   }
 
   if (action === "claim") {
-    if (typeof roommateId !== "number") {
-      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
-    }
-
     const roommate = roommates.find((r) => r.id === roommateId);
     if (!roommate) {
       return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
@@ -204,10 +202,6 @@ export async function POST(req: Request) {
   }
 
   if (action === "uncomplete" || action === "undo_complete") {
-    if (typeof roommateId !== "number") {
-      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
-    }
-
     const roommate = roommates.find((r) => r.id === roommateId);
     if (!roommate) {
       return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });

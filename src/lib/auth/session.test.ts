@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import crypto from "crypto";
 import {
   createSessionToken,
   verifySessionToken,
+  getSessionPayload,
   getClientIp,
   getSessionSecret,
   getExpectedHouseCode,
 } from "./session";
 
-describe("Session & Auth Helpers (P0-02)", () => {
+describe("Session & Auth Helpers (P0-02 & Profilo Univoco)", () => {
   const VALID_SECRET = "super-secret-key-that-is-at-least-32-chars-long!";
   const VALID_CODE = "segretoDellaCasa123";
 
@@ -29,14 +31,46 @@ describe("Session & Auth Helpers (P0-02)", () => {
     expect(() => getExpectedHouseCode()).toThrow("HOUSE_SECRET_CODE deve essere configurato");
   });
 
-  it("creates and verifies valid session tokens", () => {
-    const token = createSessionToken();
-    expect(typeof token).toBe("string");
-    expect(verifySessionToken(token)).toBe(true);
+  it("creates and verifies valid session tokens with roommateId (0, 1, 2)", () => {
+    for (const id of [0, 1, 2]) {
+      const token = createSessionToken(id);
+      expect(typeof token).toBe("string");
+      expect(verifySessionToken(token)).toBe(true);
+
+      const payload = getSessionPayload(token);
+      expect(payload).not.toBeNull();
+      expect(payload?.roommateId).toBe(id);
+      expect(payload?.houseId).toBe("default");
+      expect(typeof payload?.authenticatedAt).toBe("number");
+    }
+  });
+
+  it("throws error when trying to create a token with invalid roommateId", () => {
+    expect(() => createSessionToken(3 as any)).toThrow("roommateId non valido");
+    expect(() => createSessionToken(-1 as any)).toThrow("roommateId non valido");
+    expect(() => createSessionToken(NaN as any)).toThrow("roommateId non valido");
+    expect(() => createSessionToken(undefined as any)).toThrow("roommateId non valido");
+  });
+
+  it("invalidates legacy sessions lacking roommateId", () => {
+    // Simula un vecchio token generato prima della modifica (privo di roommateId)
+    const oldPayload = {
+      houseId: "default",
+      authenticatedAt: Date.now(),
+    };
+    const payloadB64 = Buffer.from(JSON.stringify(oldPayload)).toString("base64url");
+    const signature = crypto
+      .createHmac("sha256", VALID_SECRET)
+      .update(payloadB64)
+      .digest("base64url");
+    const legacyToken = `${payloadB64}.${signature}`;
+
+    expect(verifySessionToken(legacyToken)).toBe(false);
+    expect(getSessionPayload(legacyToken)).toBeNull();
   });
 
   it("safely rejects tokens with signatures of different lengths without RangeError exception", () => {
-    const token = createSessionToken();
+    const token = createSessionToken(0);
     const [payload, sig] = token.split(".");
 
     // Signature with completely different length

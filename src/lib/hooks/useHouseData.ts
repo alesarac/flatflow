@@ -3,44 +3,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { HouseData } from "../domain/types";
 
-const LOCAL_STORAGE_KEY = "flatflow_my_roommate_id";
-
 export function useHouseData() {
   const [data, setData] = useState<HouseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
-  const [myRoommateId, setMyRoommateIdState] = useState<number | null>(null);
+  const [myRoommateId, setMyRoommateId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Carica il profilo salvato da localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved !== null && saved !== "") {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed) && parsed >= 0 && parsed <= 2) {
-          setMyRoommateIdState(parsed);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const setMyRoommateId = useCallback((id: number | null) => {
-    setMyRoommateIdState(id);
-    try {
-      if (id === null) {
-        localStorage.removeItem(LOCAL_STORAGE_KEY);
-      } else {
-        localStorage.setItem(LOCAL_STORAGE_KEY, id.toString());
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -48,6 +18,7 @@ export function useHouseData() {
       if (res.status === 401) {
         setAuthenticated(false);
         setData(null);
+        setMyRoommateId(null);
         setLoading(false);
         return;
       }
@@ -57,6 +28,9 @@ export function useHouseData() {
       }
       const json: HouseData = await res.json();
       setData(json);
+      if (typeof json.myRoommateId === "number") {
+        setMyRoommateId(json.myRoommateId);
+      }
       setAuthenticated(true);
       setError(null);
     } catch (err: unknown) {
@@ -88,7 +62,10 @@ export function useHouseData() {
   }, [fetchData]);
 
   // Azioni pulizie
-  const completeCleaning = async (taskId: string, weekKey: string, roommateId: number) => {
+  const completeCleaning = async (taskId: string, weekKey: string, roommateId?: number) => {
+    const targetRoommateId = roommateId ?? myRoommateId;
+    if (targetRoommateId === null) return false;
+
     setSubmittingTaskId(taskId);
     setIsSubmitting(true);
     try {
@@ -99,7 +76,7 @@ export function useHouseData() {
           action: "complete",
           taskId,
           weekKey,
-          roommateId,
+          roommateId: targetRoommateId,
         }),
       });
 
@@ -123,7 +100,10 @@ export function useHouseData() {
     }
   };
 
-  const declineCleaning = async (taskId: string, weekKey: string, roommateId: number) => {
+  const declineCleaning = async (taskId: string, weekKey: string, roommateId?: number) => {
+    const targetRoommateId = roommateId ?? myRoommateId;
+    if (targetRoommateId === null) return false;
+
     setSubmittingTaskId(taskId);
     setIsSubmitting(true);
     try {
@@ -134,7 +114,7 @@ export function useHouseData() {
           action: "decline",
           taskId,
           weekKey,
-          roommateId,
+          roommateId: targetRoommateId,
         }),
       });
 
@@ -158,7 +138,10 @@ export function useHouseData() {
     }
   };
 
-  const uncompleteCleaning = async (taskId: string, weekKey: string, roommateId: number) => {
+  const uncompleteCleaning = async (taskId: string, weekKey: string, roommateId?: number) => {
+    const targetRoommateId = roommateId ?? myRoommateId;
+    if (targetRoommateId === null) return false;
+
     setSubmittingTaskId(taskId);
     setIsSubmitting(true);
     try {
@@ -169,7 +152,7 @@ export function useHouseData() {
           action: "uncomplete",
           taskId,
           weekKey,
-          roommateId,
+          roommateId: targetRoommateId,
         }),
       });
 
@@ -193,7 +176,10 @@ export function useHouseData() {
     }
   };
 
-  const claimCleaning = async (taskId: string, weekKey: string, roommateId: number) => {
+  const claimCleaning = async (taskId: string, weekKey: string, roommateId?: number) => {
+    const targetRoommateId = roommateId ?? myRoommateId;
+    if (targetRoommateId === null) return false;
+
     setSubmittingTaskId(taskId);
     setIsSubmitting(true);
     try {
@@ -204,7 +190,7 @@ export function useHouseData() {
           action: "claim",
           taskId,
           weekKey,
-          roommateId,
+          roommateId: targetRoommateId,
         }),
       });
 
@@ -255,13 +241,16 @@ export function useHouseData() {
     }
   };
 
-  const declineTrashAction = async (roommateId: number) => {
+  const declineTrashAction = async (roommateId?: number) => {
+    const targetRoommateId = roommateId ?? myRoommateId;
+    if (targetRoommateId === null) return false;
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "decline", roommateId }),
+        body: JSON.stringify({ action: "decline", roommateId: targetRoommateId }),
       });
 
       const resJson = await res.json();
@@ -281,13 +270,16 @@ export function useHouseData() {
     }
   };
 
-  const completeTrashAction = async (roommateId: number) => {
+  const completeTrashAction = async (roommateId?: number) => {
+    const targetRoommateId = roommateId ?? myRoommateId;
+    if (targetRoommateId === null) return false;
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete", roommateId }),
+        body: JSON.stringify({ action: "complete", roommateId: targetRoommateId }),
       });
 
       const resJson = await res.json();
@@ -307,13 +299,16 @@ export function useHouseData() {
     }
   };
 
-  const claimTrashAction = async (roommateId: number) => {
+  const claimTrashAction = async (roommateId?: number) => {
+    const targetRoommateId = roommateId ?? myRoommateId;
+    if (targetRoommateId === null) return false;
+
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "claim", roommateId }),
+        body: JSON.stringify({ action: "claim", roommateId: targetRoommateId }),
       });
 
       const resJson = await res.json();
@@ -333,7 +328,7 @@ export function useHouseData() {
     }
   };
 
-  // Aggiornamento nome coinquilino
+  // Aggiornamento nome coinquilino (solo il proprio)
   const updateRoommateName = async (id: number, name: string): Promise<boolean> => {
     try {
       const res = await fetch("/api/house/roommates", {
@@ -357,6 +352,7 @@ export function useHouseData() {
       await fetch("/api/auth/logout", { method: "POST" });
       setAuthenticated(false);
       setData(null);
+      setMyRoommateId(null);
     } catch {
       //
     }
@@ -370,7 +366,6 @@ export function useHouseData() {
     isSubmitting,
     authenticated,
     myRoommateId,
-    setMyRoommateId,
     refresh: fetchData,
     completeCleaning,
     declineCleaning,
