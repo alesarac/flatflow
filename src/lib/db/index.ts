@@ -10,10 +10,11 @@ export function getRepository(): IHouseRepository {
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secretKey =
+    process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (supabaseUrl && serviceRoleKey) {
-    repoInstance = new SupabaseHouseRepository(supabaseUrl, serviceRoleKey);
+  if (supabaseUrl && secretKey) {
+    repoInstance = new SupabaseHouseRepository(supabaseUrl, secretKey);
     return repoInstance;
   }
 
@@ -29,7 +30,7 @@ export function getRepository(): IHouseRepository {
   // In produzione o su Vercel, non consentire alcun fallback silenzioso effimero
   throw new Error(
     "Configurazione database mancante: in produzione è richiesto Supabase. " +
-      "Imposta le variabili d'ambiente NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY."
+      "Imposta le variabili d'ambiente NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SECRET_KEY."
   );
 }
 

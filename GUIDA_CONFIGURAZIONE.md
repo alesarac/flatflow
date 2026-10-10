@@ -1,123 +1,206 @@
 # Guida alla Configurazione, Pubblicazione e Utilizzo di Flatflow 🚀
 
-Questa guida fornisce le istruzioni complete per configurare il database Supabase, pubblicare l'applicazione su Vercel e iniziare a utilizzarla con i propri coinquilini.
+Questa guida fornisce le istruzioni passo-passo, adatte anche a un principiante, per configurare il database Supabase, verificare la persistenza in locale, effettuare i controlli di sicurezza, pubblicare l'applicazione su Vercel e iniziare a utilizzarla con i propri coinquilini.
 
 ---
 
 ## 1. Configurazione del Database su Supabase
 
-[Supabase](https://supabase.com) offre un database PostgreSQL ospitato sul cloud con un generoso piano gratuito permanente.
+[Supabase](https://supabase.com) offre un database PostgreSQL ospitato sul cloud con un piano gratuito ideale per l'applicazione.
 
 ### Passaggi:
 
 1. **Crea un account o accedi:**
-   - Vai su [supabase.com](https://supabase.com) e accedi (anche con account GitHub).
+   - Vai su [supabase.com](https://supabase.com) e accedi (è possibile utilizzare anche il proprio account GitHub).
 
 2. **Crea un nuovo progetto:**
    - Clicca su **«New Project»**.
    - Scegli un nome per il progetto (es. `flatflow`).
-   - Imposta una password sicura per il database.
+   - Imposta una password sicura per il database (conservala in un luogo sicuro).
    - Scegli la regione più vicina (es. *West Europe - Frankfurt* per l'Italia).
    - Mantieni selezionato il piano gratuito (**Free Tier**).
-   - Clicca su **«Create new project»** e attendi circa 1 minuto per il completamento dell'inizializzazione.
+   - Clicca su **«Create new project»** e attendi circa 1-2 minuti per il completamento dell'inizializzazione.
 
 3. **Esegui lo schema del database:**
    - Nel menu laterale sinistro della dashboard di Supabase, clicca su **«SQL Editor»**.
    - Clicca su **«New query»**.
    - Apri il file [`supabase/schema.sql`](./supabase/schema.sql) presente in questo repository, copia l'intero contenuto e incollalo nell'editor SQL di Supabase.
-   - Clicca sul pulsante **«Run»** (in basso a destra).
-   - Tutte le tabelle (`house_config`, `roommates`, `weekly_absences`, `cleaning_tasks`, `trash_tasks`, `login_attempts`), i vincoli di unicità (un solo compito di spazzatura aperto e unicità per area/settimana), le funzioni transazionali RPC e le policy di sicurezza RLS restrittive verranno create istantaneamente.
+   - Clicca sul pulsante verde **«Run»** in basso a destra.
+   - Tutte le tabelle (`house_config`, `roommates`, `weekly_absences`, `cleaning_tasks`, `trash_tasks`, `login_attempts`), i vincoli di unicità, la funzione atomica protetta `rpc_complete_trash` e le policy restrittive Row Level Security (RLS) verranno create istantaneamente.
 
 4. **Recupera le credenziali API:**
-   - Nel menu laterale sinistro, vai su **Project Settings** (icona ingranaggio) > **API**.
-   - Troverai due informazioni essenziali da copiare:
-     - **Project URL** (es. `https://xyzabc.supabase.co`)
-     - **Project API Keys**:
-       - `service_role` `secret`: la chiave segreta di servizio per il backend Next.js (da conservare rigorosamente segreta sul server e non esporre mai nel frontend).
+   - Nel menu laterale sinistro, vai su **Project Settings** (icona ingranaggio) > **API** (o **API Keys**).
+   - Troverai le credenziali necessarie:
+     - **Project URL:** l'indirizzo del tuo progetto (es. `https://<tuo-progetto-id>.supabase.co`).
+     - **Secret API Key (`SUPABASE_SECRET_KEY`):** copia la chiave contrassegnata come **Secret** (le nuove chiavi Supabase hanno il prefisso `sb_secret_...`; nei progetti con formato legacy compare come chiave `service_role`).
+     - **Publishable / Anon key:** copia temporaneamente la chiave pubblica (`sb_pub_...` o `anon`); servirà unicamente per la verifica di sicurezza degli accessi anonimi al termine della guida.
+
+> [!WARNING]
+> La **Secret API Key** possiede privilegi amministrativi completi sul database. Non deve **mai** essere esposta nel browser, non deve avere il prefisso `NEXT_PUBLIC_` e deve essere impostata esclusivamente come variabile d'ambiente lato server.
 
 ---
 
-## 2. Pubblicazione su Vercel
+## 2. Generazione dei Segreti di Sicurezza
 
-[Vercel](https://vercel.com) è la piattaforma ideale e nativa per ospitare applicazioni Next.js gratuitamente con dominio HTTPS e certificato SSL automatico.
+Flatflow non utilizza credenziali predefinite insicure: tutti i segreti devono essere impostati prima dell'avvio.
+
+1. **`HOUSE_SECRET_CODE` (Codice di accesso della casa):**
+   - È la parola d'ordine o codice condiviso che i tre coinquilini utilizzeranno per accedere all'app dal proprio smartphone.
+   - Scegli una combinazione concordata, sicura e difficile da indovinare (es. 10-16 caratteri con lettere, numeri e simboli). Non usare codici banali come `123456` o nomi della via.
+
+2. **`SESSION_SECRET` (Chiave di firma della sessione):**
+   - Viene utilizzata dal server per firmare crittograficamente i cookie di sessione (HMAC-SHA256). Deve essere una stringa casuale di almeno 32 caratteri.
+   - Puoi generarla rapidamente aprendo un terminale ed eseguendo questo comando:
+     ```bash
+     node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+     ```
+     *(In alternativa, su macOS o Linux puoi usare `openssl rand -hex 32`, oppure generare una sequenza casuale da un password manager).*
+
+---
+
+## 3. Test Locale e Verifica della Persistenza
+
+Prima di pubblicare l'applicazione, è consigliabile eseguire un breve test in locale collegando il database Supabase appena creato per accertarsi che i dati vengano salvati correttamente.
+
+1. **Prepara il file `.env.local`:**
+   Nella cartella principale del progetto, copia il file di esempio:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. **Configura i valori nel file `.env.local`:**
+   Apri `.env.local` con un editor di testo e inserisci i parametri ottenuti nei passaggi precedenti:
+   ```ini
+   HOUSE_SECRET_CODE=<IL_TUO_CODICE_CASA_SCELTO>
+   SESSION_SECRET=<LA_TUA_CHIAVE_CASUALE_GENERATA_DI_ALMENO_32_CARATTERI>
+   NEXT_PUBLIC_SUPABASE_URL=https://<tuo-progetto-id>.supabase.co
+   SUPABASE_SECRET_KEY=<LA_TUA_SECRET_KEY_sb_secret_OPPURE_service_role>
+   ```
+
+3. **Avvia il server di sviluppo:**
+   ```bash
+   npm run dev
+   ```
+
+4. **Verifica il funzionamento e la persistenza:**
+   - Apri il browser all'indirizzo [http://localhost:3000](http://localhost:3000).
+   - Inserisci il codice segreto impostato in `HOUSE_SECRET_CODE`.
+   - Seleziona uno dei tre coinquilini per impostare il tuo profilo.
+   - Effettua un'azione di prova: premi **«Ho pulito»** su una delle pulizie oppure premi **«Segnala spazzatura piena»**.
+   - Ricarica la pagina o riavvia il comando `npm run dev`: l'azione eseguita deve rimanere visualizzata.
+   - **Riscontro su Supabase:** entra nella dashboard di Supabase, clicca su **Table Editor** nel menu a sinistra e seleziona la tabella `cleaning_tasks` o `trash_tasks`: vedrai la riga salvata nel database remoto.
+
+---
+
+## 4. Verifica di Sicurezza degli Accessi Anonimi a Supabase
+
+Prima di mettere l'app a disposizione dei coinquilini, è fondamentale verificare che le tabelle private non siano leggibili né modificabili da utenti esterni non autorizzati tramite la Data API pubblica di Supabase.
+
+1. **Test di lettura anonima:**
+   Apri un terminale ed esegui una richiesta di prova indirizzata alla tabella di configurazione, utilizzando la chiave pubblica anonima (`anon` o `sb_pub_...`):
+   ```bash
+   curl -i -H "apikey: <LA_TUA_CHIAVE_ANON_O_sb_pub>" "https://<tuo-progetto-id>.supabase.co/rest/v1/house_config"
+   ```
+   - **Risultato atteso:** la risposta deve restituire un array vuoto `[]` oppure un messaggio di permesso negato. **Nessun dato privato deve essere restituito**.
+   - Questo conferma che le policy Row Level Security (RLS) impediscono l'accesso a utenti anonimi privi di autorizzazione.
+
+2. **Test della funzione RPC:**
+   Verifica che la funzione atomica di completamento spazzatura non sia invocabile anonimamente:
+   ```bash
+   curl -i -X POST -H "apikey: <LA_TUA_CHIAVE_ANON_O_sb_pub>" "https://<tuo-progetto-id>.supabase.co/rest/v1/rpc/rpc_complete_trash"
+   ```
+   - **Risultato atteso:** la richiesta viene respinta con errore di autorizzazione (`permission denied`).
+
+3. **Conclusione:** Solo il server di Flatflow (tramite la `SUPABASE_SECRET_KEY` configurata sul backend) può leggere e modificare i dati del database.
+
+---
+
+## 5. Pubblicazione su Vercel
+
+[Vercel](https://vercel.com) ospita applicazioni Next.js gratuitamente, con dominio HTTPS e certificato SSL gestito in automatico.
 
 ### Passaggi:
 
-1. **Carica il codice su GitHub:**
-   - Crea un repository privato o pubblico su GitHub ed esegui il push del progetto Flatflow:
-     ```bash
-     git remote add origin https://github.com/tuo-username/flatflow.git
-     git push -u origin main
-     ```
+1. **Aggiorna il codice su GitHub:**
+   Il repository è già configurato con il remote `origin` (`alesarac/flatflow`). Assicurati che le tue modifiche locali siano committate e inviate a GitHub:
+   ```bash
+   git status
+   git push origin main
+   ```
+   *(Non è necessario eseguire `git remote add origin`, poiché il remote è già presente).*
 
 2. **Collega il progetto su Vercel:**
    - Accedi a [vercel.com](https://vercel.com) con il tuo account GitHub.
    - Clicca su **«Add New...»** > **«Project»**.
    - Seleziona il repository `flatflow` e clicca su **«Import»**.
 
-3. **Configura le Variabili d'Ambiente (Environment Variables):**
-   Prima di cliccare su *Deploy*, espandi la sezione **«Environment Variables»** e aggiungi le seguenti variabili obbligatorie:
+3. **Configura le Variabili d'Ambiente su Vercel:**
+   Nella schermata di importazione, prima di premere *Deploy*, espandi la sezione **«Environment Variables»** e aggiungi le 4 variabili:
 
-   | Nome Variabile | Valore / Descrizione | Esempio |
-   | :--- | :--- | :--- |
-   | `HOUSE_SECRET_CODE` | Il codice segreto che i coinquilini useranno per accedere | `casaNostra2026!` |
-   | `SESSION_SECRET` | Stringa casuale sicura di almeno 32 caratteri per la firma dei cookie HMAC | `f83j2k9s8d7f6g5h4j3k2l1m9n8b7v6c5` |
-   | `NEXT_PUBLIC_SUPABASE_URL` | URL del tuo progetto Supabase | `https://xyzabc.supabase.co` |
-   | `SUPABASE_SERVICE_ROLE_KEY` | La chiave `service_role` segreta ottenuta da Supabase | `eyJhbGciOi...` |
+   | Nome Variabile | Descrizione |
+   | :--- | :--- |
+   | `HOUSE_SECRET_CODE` | Il codice segreto concordato per l'accesso dei coinquilini |
+   | `SESSION_SECRET` | La stringa casuale di almeno 32 caratteri generata per la firma |
+   | `NEXT_PUBLIC_SUPABASE_URL` | L'URL del progetto Supabase (`https://<tuo-progetto-id>.supabase.co`) |
+   | `SUPABASE_SECRET_KEY` | La Secret API Key (`sb_secret_...` o chiave `service_role`) |
 
 4. **Avvia il Deployment:**
    - Clicca su **«Deploy»**.
-   - Vercel compilerà ed eseguirà la build in circa 45 secondi.
-   - Al termine, riceverai un URL HTTPS condivisibile (es. `https://flatflow-xyz.vercel.app`).
+   - Vercel compilerà l'applicazione in circa 45 secondi.
+   - Al termine, riceverai un URL HTTPS pubblico (es. `https://flatflow-xyz.vercel.app`).
 
 ---
 
-## 3. Limiti dei Piani Gratuiti (Free Tier)
+## 6. Limiti dei Piani Gratuiti (Free Tier)
 
-Sia Supabase sia Vercel offrono piani gratuiti ideali per 3 coinquilini:
+I piani gratuiti di Supabase e Vercel sono più che sufficienti per l'utilizzo da parte di 3 coinquilini:
 
 ### Supabase (Free Tier):
-- **Database:** fino a 500 MB di spazio (Flatflow occupa meno di 5 MB in diversi anni di utilizzo normale).
-- **Richieste:** fino a 500.000 richieste API al mese (un uso tipico di 3 coinquilini genera meno di 1.000 richieste/mese).
-- **Pausa progetti inattivi:** se un progetto Supabase gratuito non riceve alcuna query per oltre 7 giorni consecutivi, può essere sospeso temporaneamente. È sufficiente aprire l'app o accedere alla dashboard di Supabase per riattivarlo in 30 secondi.
+- **Richieste API:** **Illimitate**.
+- **Spazio Database:** fino a 500 MB di archiviazione PostgreSQL (l'intero storico di Flatflow per diversi anni occupa meno di 5 MB).
+- **Pausa per inattività e ripristino:** se un progetto gratuito non riceve traffico o query per oltre una settimana, Supabase può metterlo temporaneamente in pausa ("paused"). Per riattivarlo:
+  1. Accedi alla dashboard su [supabase.com](https://supabase.com).
+  2. Clicca sul pulsante **«Restore project»**.
+  3. Il database torna pienamente operativo in circa 1-2 minuti senza alcuna perdita di dati.
+- **Assenza di backup automatici:** il piano Free di Supabase **non include backup automatici programmati giornalieri (Point-in-time recovery)**. Se desideri fare una copia di salvataggio periodica dei dati, puoi esportare manualmente i contenuti dal menu Database della dashboard oppure tramite comando terminale con la CLI di Supabase (`supabase db dump`).
 
 ### Vercel (Hobby Tier):
-- **Banda:** 100 GB al mese (Flatflow consuma una frazione trascurabile di questo limite).
-- **Funzioni Serverless:** 100.000 invocazioni giornaliere (ampiamente sufficienti).
-- **SSL / HTTPS:** Certificato SSL LetsEncrypt gestito e rinnovato automaticamente a costo zero.
+- **Funzioni Serverless:** **1 milione di invocazioni al mese** (l'uso tipico di 3 coinquilini genera meno di 2.000 invocazioni mensili).
+- **Larghezza di banda:** 100 GB al mese.
+- **Certificato SSL / HTTPS:** gestito e rinnovato automaticamente a costo zero.
 
 ---
 
-## 4. Come Utilizzare l'Applicazione tra Coinquilini
+## 7. Come Utilizzare l'Applicazione tra Coinquilini
 
 ### Primo Accesso da Smartphone:
-1. Condividi il link Vercel con i tuoi due coinquilini (es. tramite chat).
+1. Condividi il link Vercel con i tuoi due coinquilini (es. tramite messaggio o chat di gruppo).
 2. All'apertura della pagina, ciascuno inserisce il **codice segreto della casa** (`HOUSE_SECRET_CODE`).
-3. Il server verifica il codice e memorizza la sessione sul browser del dispositivo per 1 anno tramite cookie sicuro HTTP-only, evitando di doverlo reinserire a ogni accesso.
-4. L'app chiede: **«Chi sei?»**: ciascun coinquilino seleziona il proprio nome dalla lista dei tre profili.
+3. Il server verifica il codice e memorizza la sessione sul browser del dispositivo per 1 anno tramite cookie sicuro HTTP-only, evitando di doverlo reinserire a ogni visita.
+4. L'app chiede: **«Chi sei?»**: ciascun coinquilino seleziona il proprio nome dalla lista dei tre profili. La scelta rimane salvata sul dispositivo, ma può essere cambiata in qualsiasi momento dalle impostazioni.
 
 ### Installazione come PWA (Icona su Schermata Home):
-Per avere la sensazione di un'applicazione nativa senza barra degli indirizzi:
+Per utilizzare l'app a schermo intero senza barre di navigazione del browser:
 - **Su iPhone (Safari):**
-  1. Apri il link su Safari.
-  2. Tocca l'icona **Condividi** (il quadrato con la freccia verso l'alto in basso al centro).
+  1. Apri il link dell'applicazione su Safari.
+  2. Tocca l'icona **Condividi** (il quadrato con la freccia verso l'alto).
   3. Scorri e seleziona **«Aggiungi alla schermata Home»**.
-  4. Premi **«Aggiungi»**.
-- **Su Android (Chrome / Brave / Firefox):**
-  1. Apri il link su Chrome.
-  2. Tocca i tre puntini in alto a destra.
+  4. Premi **«Aggiungi»** in alto a destra.
+- **Su Android (Chrome / Firefox / Brave):**
+  1. Apri il link dell'applicazione nel browser.
+  2. Tocca i tre puntini del menu in alto a destra.
   3. Seleziona **«Installa applicazione»** o **«Aggiungi a schermata Home»**.
 
-### Flusso Quotidiano delle Attività:
-- **Lunedì mattina (fuso orario italiano Europe/Rome):** Le pulizie delle tre aree (*Cucina*, *Bagno*, *Ingresso e corridoio*) ruotano automaticamente a mezzanotte.
+### Flusso delle Attività:
+- **Rotazione settimanale (Lunedì fuso orario italiano Europe/Rome):** Le pulizie delle tre aree (*Cucina*, *Bagno*, *Ingresso e corridoio*) ruotano automaticamente ogni lunedì a mezzanotte.
 - **Durante la settimana:**
-  - Quando fai la tua pulizia, apri l'app e premi **«Ho pulito»**.
-  - Se non puoi farla, premi **«Non posso pulire»**: il sistema passerà l'incarico a un altro coinquilino disponibile seguendo l'ordine prestabilito (0 → 1 → 2 → 0).
-  - Se sei via tutta la settimana, attiva **«Sono assente questa settimana»**: non riceverai alcun compito e le attività verranno distribuite tra chi è presente. Se avevi la spazzatura aperta, verrà riassegnata immediatamente a un coinquilino presente senza alterare la coda.
+  - Dopo aver fatto la pulizia, apri l'app e premi **«Ho pulito»**.
+  - Se non puoi farla, premi **«Non posso pulire»**: il sistema riassegna il compito al coinquilino successivo disponibile (seguendo la rotazione ciclica 0 → 1 → 2 → 0).
+  - Se sei assente per l'intera settimana, attiva **«Sono assente questa settimana»**: non riceverai compiti e le attività verranno distribuite tra i coinquilini presenti.
 - **Spazzatura:**
   - Quando il bidone è pieno, premi **«Segnala spazzatura piena»**.
-  - Il sistema assegna il compito al coinquilino in cima alla coda equa.
-  - Chi la butta preme **«Ho buttato la spazzatura»** e passa in fondo alla coda.
+  - Il sistema assegna il turno al coinquilino in testa alla coda equa a 3 posizioni.
+  - Chi la getta preme **«Ho buttato la spazzatura»** e passa in fondo alla coda.
   - Chi rinuncia preme **«Non posso»**: viene saltato per questa volta ma mantiene la priorità per il prossimo turno.
-- **Modifica dei nomi:**
-  - Nella schermata **Impostazioni**, puoi aggiornare in ogni momento i nomi dei tre coinquilini. I nomi registrati nelle pulizie già completate o incomplete nello storico rimarranno preservati fedelmente.
+- **Modifica dei nomi dei coinquilini:**
+  - Dalle **Impostazioni**, è possibile personalizzare i nomi dei coinquilini in qualsiasi momento. Lo storico delle pulizie già effettuate preserverà i nomi storici originali.

@@ -67,7 +67,7 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
 1. **Clona il repository:**
 
    ```bash
-   git clone https://github.com/tuo-username/flatflow.git
+   git clone https://github.com/alesarac/flatflow.git
    cd flatflow
    ```
 2. **Installa le dipendenze:**
@@ -81,13 +81,16 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
    ```bash
    cp .env.example .env.local
    ```
-   *(I valori predefiniti consentono di avviare l'app immediatamente in locale utilizzando il database locale su file).*
+   Configura i valori obbligatori in `.env.local`:
+   - `HOUSE_SECRET_CODE`: il codice segreto concordato per la casa.
+   - `SESSION_SECRET`: stringa casuale di almeno 32 caratteri per la firma delle sessioni (es. generabile con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
+   - `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`: le credenziali del database Supabase (per test o sviluppo locale offline senza Supabase, imposta `USE_LOCAL_DB=true`).
 4. **Avvia il server di sviluppo:**
 
    ```bash
    npm run dev
    ```
-   L'app sarà disponibile su [http://localhost:3000](http://localhost:3000). Il codice predefinito della casa è `flatflow2026`.
+   L'app sarà disponibile su [http://localhost:3000](http://localhost:3000). Accedi inserendo il codice della casa definito in `HOUSE_SECRET_CODE`.
 5. **Esegui i test automatizzati:**
 
    ```bash
