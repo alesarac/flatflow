@@ -31,6 +31,7 @@ export interface CleaningTask {
   isCompleted: boolean;
   completedAt: string | null;
   completedByName: string | null;
+  completedBy: number | null; // ID stabile del coinquilino che ha completato l'attività (0, 1, 2)
 }
 
 export interface TrashTask {

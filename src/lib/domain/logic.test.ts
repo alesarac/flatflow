@@ -286,9 +286,50 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
     expect(undone.isCompleted).toBe(false);
     expect(undone.completedAt).toBeNull();
     expect(undone.completedByName).toBeNull();
+    expect(undone.completedBy).toBeNull();
     expect(undone.assignedTo).toBe(1);
     expect(undone.assignedToName).toBe("Coinquilino 2");
     expect(undone.declinedBy).toEqual([0]);
+  });
+
+  it("handles subsequent absence of assignee during completed state", () => {
+    // Task was assigned to 1 and completed by 1
+    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
+    const completed = {
+      ...cleanings[1], // assignedTo: 1
+      isCompleted: true,
+      completedAt: new Date().toISOString(),
+      completedByName: "Coinquilino 2",
+      completedBy: 1,
+    };
+
+    // Roommate 1 became absent afterwards
+    const undone = uncompleteCleaningTask(completed, [1], roommates);
+    expect(undone.isCompleted).toBe(false);
+    expect(undone.completedBy).toBeNull();
+    // Since 1 is absent, substitute is found (2)
+    expect(undone.assignedTo).toBe(2);
+    expect(undone.assignedToName).toBe("Coinquilino 3");
+  });
+
+  it("preserves assignedTo: null for originally unassigned tasks on uncomplete", () => {
+    const cleanings = createWeekCleanings("2026-10-05", [0, 1, 2], roommates);
+    const unassigned = cleanings[0];
+    expect(unassigned.assignedTo).toBeNull();
+
+    const completed = {
+      ...unassigned,
+      isCompleted: true,
+      completedAt: new Date().toISOString(),
+      completedByName: "Coinquilino 1",
+      completedBy: 0,
+    };
+
+    const undone = uncompleteCleaningTask(completed, [1, 2], roommates);
+    expect(undone.isCompleted).toBe(false);
+    expect(undone.completedBy).toBeNull();
+    expect(undone.assignedTo).toBeNull();
+    expect(undone.assignedToName).toBeNull();
   });
 
   it("restores assignedTo: null if task was originally without an assignee (all declined or absent)", () => {
@@ -303,12 +344,14 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
       isCompleted: true,
       completedAt: new Date().toISOString(),
       completedByName: "Coinquilino 1",
+      completedBy: 0,
     };
 
     const undone = uncompleteCleaningTask(completed, [1, 2], roommates);
     expect(undone.isCompleted).toBe(false);
     expect(undone.completedAt).toBeNull();
     expect(undone.completedByName).toBeNull();
+    expect(undone.completedBy).toBeNull();
     expect(undone.assignedTo).toBeNull();
     expect(undone.assignedToName).toBeNull();
   });
@@ -320,5 +363,6 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
     );
   });
 });
+
 
 

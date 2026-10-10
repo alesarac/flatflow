@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
 import { declineCleaningTask, getWeekKey, uncompleteCleaningTask } from "@/lib/domain/logic";
+import { CleaningTask } from "@/lib/domain/types";
 
 export async function POST(req: Request) {
   const authenticated = await isRequestAuthenticated(req);
@@ -71,11 +72,13 @@ export async function POST(req: Request) {
     }
 
     // Snapshot del nome ricavato direttamente dal database (non dal payload del client)
-    const taskToSave = {
+    // e ID stabile del coinquilino per autorizzare l'eventuale annullamento
+    const taskToSave: CleaningTask = {
       ...task,
       isCompleted: true,
       completedAt: new Date().toISOString(),
       completedByName: roommate.name,
+      completedBy: roommateId,
       assignedTo: task.assignedTo !== null ? task.assignedTo : null,
       assignedToName: task.assignedToName !== null ? task.assignedToName : null,
     };
@@ -167,8 +170,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // Consenti l'annullamento soltanto al profilo che ha registrato il completamento
-    if (!task.completedByName || task.completedByName !== roommate.name) {
+    // Consenti l'annullamento soltanto al profilo che ha registrato il completamento via ID stabile
+    const canUndo =
+      task.completedBy !== null && task.completedBy !== undefined
+        ? task.completedBy === roommateId
+        : task.completedByName === roommate.name;
+
+    if (!canUndo) {
       return NextResponse.json(
         { error: "Solo il coinquilino che ha registrato il completamento può annullarlo." },
         { status: 403 }

@@ -777,11 +777,13 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
       }),
     });
 
-    const res1 = await cleaningsRoute(undoReq1);
-    expect(res1.status).toBe(200);
-
-    const res2 = await cleaningsRoute(undoReq2);
-    expect(res2.status).toBe(409);
+    const [res1, res2] = await Promise.all([
+      cleaningsRoute(undoReq1),
+      cleaningsRoute(undoReq2),
+    ]);
+    const statuses = [res1.status, res2.status];
+    expect(statuses).toContain(200);
+    expect(statuses).toContain(409);
 
     // 4. Verifica che il compito originariamente senza incaricato torni con assignedTo = null
     const finalWeek = await repo.getWeekState(currentWeekKey);
@@ -789,8 +791,144 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(finalTask.isCompleted).toBe(false);
     expect(finalTask.completedAt).toBeNull();
     expect(finalTask.completedByName).toBeNull();
+    expect(finalTask.completedBy).toBeNull();
     expect(finalTask.assignedTo).toBeNull();
     expect(finalTask.assignedToName).toBeNull();
+  });
+
+  it("authorizes uncomplete via stable roommate ID even if roommate changes name or shares identical name (Bug 1)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[1];
+    const assignedId = task.assignedTo!;
+
+    // 1. Il coinquilino completa il compito
+    const completeRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "complete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: assignedId,
+        }),
+      })
+    );
+    expect(completeRes.status).toBe(200);
+
+    // 2. Il coinquilino cambia il suo nome
+    await repo.updateRoommate(assignedId, "Nome Modificato");
+
+    // 3. Un altro coinquilino con ID diverso tenta di annullare -> 403 Forbidden
+    const otherId = (assignedId + 1) % 3;
+    const unauthorizedRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "uncomplete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: otherId,
+        }),
+      })
+    );
+    expect(unauthorizedRes.status).toBe(403);
+
+    // 4. Il coinquilino originale con ID stabile (anche se ha cambiato nome!) annulla con successo
+    const authorizedRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "uncomplete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: assignedId,
+        }),
+      })
+    );
+    expect(authorizedRes.status).toBe(200);
+
+    // 5. Ripristina il nome originale del coinquilino
+    await repo.updateRoommate(assignedId, `Coinquilino ${assignedId + 1}`);
+  });
+
+  it("preserves previous reassignment from decline when uncompleting (Bug 2)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[0];
+    const originalAssignee = task.assignedTo!;
+
+    // 1. L'assegnatario originale rinuncia -> il compito viene riassegnato a un sostituto
+    const declineRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: originalAssignee,
+        }),
+      })
+    );
+    expect(declineRes.status).toBe(200);
+    const declinedWeek = (await declineRes.json()).week;
+    const declinedTask = declinedWeek.cleanings.find((t: any) => t.id === task.id);
+    const substituteId = declinedTask.assignedTo;
+    expect(substituteId).not.toBe(originalAssignee);
+    expect(declinedTask.declinedBy).toContain(originalAssignee);
+
+    // 2. Il sostituto completa il compito
+    const completeRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "complete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: substituteId,
+        }),
+      })
+    );
+    expect(completeRes.status).toBe(200);
+
+    // 3. Il sostituto annulla il completamento
+    const undoRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "uncomplete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: substituteId,
+        }),
+      })
+    );
+    expect(undoRes.status).toBe(200);
+
+    // 4. L'assegnazione DEVE restare al sostituto e NON tornare all'assegnatario originale
+    const finalWeek = (await undoRes.json()).week;
+    const finalTask = finalWeek.cleanings.find((t: any) => t.id === task.id);
+    expect(finalTask.isCompleted).toBe(false);
+    expect(finalTask.assignedTo).toBe(substituteId);
+    expect(finalTask.declinedBy).toContain(originalAssignee);
   });
 });
 

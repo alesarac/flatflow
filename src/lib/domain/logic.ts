@@ -273,6 +273,7 @@ export function createWeekCleanings(
       isCompleted: false,
       completedAt: null,
       completedByName: null,
+      completedBy: null,
     });
   }
 
@@ -391,8 +392,9 @@ export function determineCleaningAssignee(
 
 /**
  * Annulla il completamento di una pulizia settimanale.
- * Cancella i dati del completamento (isCompleted: false, completedAt: null, completedByName: null)
- * e ripristina lo stato e l'assegnatario legittimo dell'attività.
+ * Cancella i dati del completamento (isCompleted: false, completedAt: null, completedByName: null, completedBy: null)
+ * e conserva l'assegnazione precedente al completamento (senza ricalcolarla automaticamente dalla rotazione originale),
+ * preservando le riassegnazioni già avvenute a causa di assenze o rinunce e gestendo le modifiche successive.
  */
 export function uncompleteCleaningTask(
   task: CleaningTask,
@@ -403,28 +405,26 @@ export function uncompleteCleaningTask(
     throw new Error("L'attività non risulta completata.");
   }
 
-  let { assignedTo, assignedToName } = determineCleaningAssignee(
-    task.areaId,
-    task.weekKey,
-    absentRoommates,
-    task.declinedBy,
-    roommates
-  );
+  let assignedTo = task.assignedTo;
 
-  // Se l'attività era esplicitamente priva di incaricato (assignedTo === null),
-  // o se il ricalcolo determina che tutti sono assenti o hanno rinunciato, mantiene null
-  if (task.assignedTo === null) {
-    assignedTo = null;
-    assignedToName = null;
+  if (assignedTo !== null) {
+    // Se l'assegnatario precedente è diventato assente successivamente,
+    // trova un valido sostituto tra chi non è assente e non ha rinunciato
+    if (absentRoommates.includes(assignedTo)) {
+      assignedTo = findSubstitute(assignedTo, absentRoommates, task.declinedBy);
+    }
   }
+
+  const assignedRoommate = assignedTo !== null ? roommates.find((r) => r.id === assignedTo) : null;
 
   return {
     ...task,
     isCompleted: false,
     completedAt: null,
     completedByName: null,
+    completedBy: null,
     assignedTo,
-    assignedToName,
+    assignedToName: assignedRoommate ? assignedRoommate.name : null,
   };
 }
 

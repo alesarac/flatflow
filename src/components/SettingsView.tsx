@@ -99,6 +99,13 @@ export function SettingsView({
 
   return (
     <div className="p-4 space-y-4 max-w-md mx-auto">
+      <div>
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Impostazioni</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Profilo locale, aspetto e configurazione casa
+        </p>
+      </div>
+
       {/* 1. Selezione profilo attivo */}
       <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-sm transition-colors">
         <div className="flex items-start gap-3">
@@ -328,7 +335,7 @@ export function SettingsView({
       </form>
 
       {/* 4. Installazione PWA */}
-      <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-2 shadow-sm transition-colors">
+      <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm transition-colors">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/50 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
             <Smartphone className="w-5 h-5" />
@@ -337,14 +344,22 @@ export function SettingsView({
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               Uso da smartphone (PWA)
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-              Per aprire la PWA come una vera app, tocca{" "}
-              <strong className="text-slate-700 dark:text-slate-300 font-semibold">
-                Condividi &gt; Aggiungi a schermata Home
-              </strong>
-              . Sarà più veloce e avrai l&apos;icona di Flatflow sul tuo telefono.
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Installa Flatflow come una vera app sul tuo telefono per un accesso rapido.
             </p>
           </div>
+        </div>
+
+        <div className="text-xs text-slate-600 dark:text-slate-300 space-y-2 pt-0.5 pl-12 border-t border-slate-100 dark:border-slate-800/80">
+          <p>
+            <strong className="text-slate-900 dark:text-white">iPhone (Safari):</strong> tocca{" "}
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Condividi</span> &gt;{" "}
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Aggiungi a schermata Home</span>.
+          </p>
+          <p>
+            <strong className="text-slate-900 dark:text-white">Android (Chrome):</strong> apri il menu dei tre puntini e seleziona{" "}
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Installa applicazione</span>.
+          </p>
         </div>
       </div>
 

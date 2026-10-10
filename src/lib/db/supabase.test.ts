@@ -129,3 +129,105 @@ describe("SupabaseHouseRepository Conditional Trash Updates (P1-01)", () => {
   });
 });
 
+describe("SupabaseHouseRepository Conditional Cleaning Updates & Undo", () => {
+  it("enforces is_completed: true filter on uncomplete, saving null completed_by/completed_by_name and preserving assigned_to", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    let updatedPayload: any = null;
+    const eqCalls: [string, any][] = [];
+
+    const mockQuery: any = {
+      update: vi.fn((payload) => {
+        updatedPayload = payload;
+        return mockQuery;
+      }),
+      eq: vi.fn((col, val) => {
+        eqCalls.push([col, val]);
+        return mockQuery;
+      }),
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: "2026-10-05-area-0" }], // 1 riga aggiornata con successo
+        error: null,
+      }),
+    };
+
+    const mockFrom = vi.fn().mockReturnValue(mockQuery);
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: mockFrom,
+    };
+
+    const taskToUncomplete = {
+      id: "2026-10-05-area-0",
+      weekKey: "2026-10-05",
+      areaId: 0,
+      assignedTo: 1, // Precedente assegnazione preservata
+      assignedToName: "Coinquilino 2",
+      declinedBy: [0],
+      isCompleted: false,
+      completedAt: null,
+      completedByName: null,
+      completedBy: null,
+    };
+
+    const success = await repo.updateCleaningTask(taskToUncomplete, {
+      isCompleted: true,
+    });
+
+    expect(success).toBe(true);
+    expect(mockFrom).toHaveBeenCalledWith("cleaning_tasks");
+    expect(eqCalls).toContainEqual(["id", "2026-10-05-area-0"]);
+    expect(eqCalls).toContainEqual(["is_completed", true]);
+
+    // Verifica payload per Supabase: reset completamento e conservazione assegnazione
+    expect(updatedPayload).toEqual({
+      assigned_to: 1,
+      assigned_to_name: "Coinquilino 2",
+      declined_by: [0],
+      is_completed: false,
+      completed_at: null,
+      completed_by_name: null,
+      completed_by: null,
+    });
+  });
+
+  it("returns false when a concurrent operation has already uncompleted or modified the task", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockQuery: any = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: [], // 0 righe aggiornate (conflitto di concorrenza)
+        error: null,
+      }),
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    const task = {
+      id: "2026-10-05-area-0",
+      weekKey: "2026-10-05",
+      areaId: 0,
+      assignedTo: 0,
+      assignedToName: "Coinquilino 1",
+      declinedBy: [],
+      isCompleted: false,
+      completedAt: null,
+      completedByName: null,
+      completedBy: null,
+    };
+
+    const success = await repo.updateCleaningTask(task, {
+      isCompleted: true,
+    });
+
+    expect(success).toBe(false);
+  });
+});
+
+

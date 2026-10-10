@@ -145,6 +145,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         is_completed: c.isCompleted,
         completed_at: c.completedAt,
         completed_by_name: c.completedByName,
+        completed_by: c.completedBy,
       }));
 
       const { error: insertError } = await this.client
@@ -176,6 +177,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         isCompleted: t.is_completed,
         completedAt: t.completed_at,
         completedByName: t.completed_by_name,
+        completedBy: t.completed_by !== undefined ? t.completed_by : null,
       }));
     } else {
       cleanings = existingTasks.map((t) => ({
@@ -188,6 +190,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         isCompleted: t.is_completed,
         completedAt: t.completed_at,
         completedByName: t.completed_by_name,
+        completedBy: t.completed_by !== undefined ? t.completed_by : null,
       }));
     }
 
@@ -402,6 +405,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         is_completed: task.isCompleted,
         completed_at: task.completedAt,
         completed_by_name: task.completedByName,
+        completed_by: task.completedBy,
       })
       .eq("id", task.id);
 

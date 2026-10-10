@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS cleaning_tasks (
   is_completed BOOLEAN NOT NULL DEFAULT FALSE,
   completed_at TIMESTAMPTZ,
   completed_by_name TEXT,
+  completed_by INT REFERENCES roommates(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT uq_cleaning_tasks_week_area UNIQUE (week_key, area_id)
 );
