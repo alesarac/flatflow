@@ -278,66 +278,11 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     const resDecline = await cleaningsRoute(declineReq);
     expect(resDecline.status).toBe(409);
 
-    // 4. Segnalazione successiva di assenza per l'assegnatario NON sovrascrive né annulla il compito già completato
-    const absenceReq = new Request("http://localhost/api/house/cleanings", {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({
-        action: "set_absence",
-        weekKey: currentWeekKey,
-        roommateId: assignedId,
-        isAbsent: true,
-      }),
-    });
-    const resAbsence = await cleaningsRoute(absenceReq);
-    expect(resAbsence.status).toBe(200);
-
     const updatedWeek = await repo.getWeekState(currentWeekKey);
     const completedTask = updatedWeek.cleanings.find((t) => t.id === task.id);
     expect(completedTask?.isCompleted).toBe(true);
     expect(completedTask?.assignedTo).toBe(assignedId);
     expect(completedTask?.completedByName).toBeDefined();
-  });
-
-  it("automatically reconciles unassigned open trash on week change via GET /api/house/data (P1-03)", async () => {
-    const token = createSessionToken();
-    const authHeaders = {
-      "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
-    };
-
-    // Crea un compito di spazzatura aperto senza assegnatario (come se lasciato dalla settimana scorsa con tutti assenti)
-    const unassignedTrash = {
-      id: "trash-unassigned-week1",
-      status: "open" as const,
-      assignedTo: null,
-      declinedBy: [],
-      reportedAt: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
-      completedAt: null,
-      completedByName: null,
-    };
-    await repo.createTrashTask(unassignedTrash);
-
-    const openBefore = await repo.getOpenTrashTask();
-    expect(openBefore?.assignedTo).toBeNull();
-
-    // Quando i coinquilini aprono l'app nella nuova settimana, GET /api/house/data riconcilia il compito
-    const dataReq = new Request("http://localhost/api/house/data", {
-      headers: authHeaders,
-    });
-    const dataRes = await houseDataRoute(dataReq);
-    expect(dataRes.status).toBe(200);
-    const data = await dataRes.json();
-
-    // Il compito è stato assegnato automaticamente al primo disponibile nella coda
-    expect(data.openTrashTask).toBeDefined();
-    expect(data.openTrashTask.assignedTo).toBe(0);
-    expect(data.openTrashTask.status).toBe("open");
-
-    // Anche il repository è stato aggiornato in modo persistente
-    const openAfter = await repo.getOpenTrashTask();
-    expect(openAfter?.assignedTo).toBe(0);
-    expect(openAfter?.status).toBe("open");
   });
 
   it("prevents completed trash from ever being reopened by concurrent reassignment or decline (P1-01)", async () => {
@@ -477,7 +422,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
   });
 
 
-  it("ensures simultaneous absences and declines never assign a cleaning to an absent or declined roommate (P1-02)", async () => {
+  it("ensures cascading declines never assign a cleaning to a declined roommate and results in null when all decline (P1-02)", async () => {
     const token = createSessionToken();
     const authHeaders = {
       "Content-Type": "application/json",
@@ -490,7 +435,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(task.assignedTo).toBe(0);
 
     // 1. Roommate 0 rinuncia all'area 0
-    const declineRes = await cleaningsRoute(
+    const declineRes1 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
         headers: authHeaders,
@@ -502,7 +447,7 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
         }),
       })
     );
-    expect(declineRes.status).toBe(200);
+    expect(declineRes1.status).toBe(200);
 
     // L'area 0 viene riassegnata a Roommate 1, con declinedBy: [0]
     let currentWeek = await repo.getWeekState(currentWeekKey);
@@ -510,48 +455,46 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(area0.assignedTo).toBe(1);
     expect(area0.declinedBy).toEqual([0]);
 
-    // 2. Simultaneamente, Roommate 1 dichiara assenza per quella settimana
-    const absRes1 = await cleaningsRoute(
+    // 2. Roommate 1 rinuncia
+    const declineRes2 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify({
-          action: "set_absence",
+          action: "decline",
           weekKey: currentWeekKey,
+          taskId: task.id,
           roommateId: 1,
-          isAbsent: true,
         }),
       })
     );
-    expect(absRes1.status).toBe(200);
+    expect(declineRes2.status).toBe(200);
 
-    // L'area 0 deve passare a Roommate 2 (non può tornare a 0 che ha rinunciato, né restare a 1 che è assente)
     currentWeek = await repo.getWeekState(currentWeekKey);
     area0 = currentWeek.cleanings.find((t) => t.id === task.id)!;
     expect(area0.assignedTo).toBe(2);
-    expect(area0.assignedTo).not.toBe(0);
-    expect(area0.assignedTo).not.toBe(1);
+    expect(area0.declinedBy).toEqual([0, 1]);
 
-    // 3. Anche Roommate 2 dichiara assenza
-    const absRes2 = await cleaningsRoute(
+    // 3. Roommate 2 rinuncia
+    const declineRes3 = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify({
-          action: "set_absence",
+          action: "decline",
           weekKey: currentWeekKey,
+          taskId: task.id,
           roommateId: 2,
-          isAbsent: true,
         }),
       })
     );
-    expect(absRes2.status).toBe(200);
+    expect(declineRes3.status).toBe(200);
 
-    // Con tutti e tre non disponibili (0 ha rinunciato, 1 e 2 assenti), l'attività DEVE essere null
-    // e non tornare MAI a una persona assente o che ha rinunciato
+    // Con tutti e tre che hanno rinunciato, l'attività DEVE essere null
     currentWeek = await repo.getWeekState(currentWeekKey);
     area0 = currentWeek.cleanings.find((t) => t.id === task.id)!;
     expect(area0.assignedTo).toBeNull();
+    expect(area0.declinedBy).toEqual([0, 1, 2]);
   });
 
   it("allows undoing cleaning completion in current week by the profile that completed it, maintaining consistent history", async () => {
@@ -1103,85 +1046,6 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     // 1 deve essere passato in fondo alla coda equa: [0, 2, 1]
     expect(finalQueue).toEqual([0, 2, 1]);
     expect(compData.openTrashTask).toBeNull();
-  });
-
-  // Scenario 3: Un coinquilino assente tenta di prendere un incarico → operazione rifiutata (403).
-  it("Scenario 3: Un coinquilino assente tenta di prendere un incarico -> operazione rifiutata (403)", async () => {
-    // 1. Imposta coinquilino 1 come assente
-    await repo.setRoommateAbsence(currentWeekKey, 1, true);
-
-    // Prepara pulizia senza incaricato
-    const week = await repo.getWeekState(currentWeekKey);
-    const task = week.cleanings[0];
-    const unassignedTask = { ...task, assignedTo: null, assignedToName: null, declinedBy: [0, 2] };
-    await repo.updateCleaningTask(unassignedTask);
-
-    // Tentativo di claim da parte dell'assente
-    const claimCleaningRes = await cleaningsRoute(
-      new Request("http://localhost/api/house/cleanings", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: 1 }),
-      })
-    );
-    expect(claimCleaningRes.status).toBe(403);
-    const cleanErr = await claimCleaningRes.json();
-    expect(cleanErr.error).toContain("assente");
-
-    // Prepara spazzatura senza incaricato
-    await repo.createTrashTask({
-      id: "trash-test-unassigned",
-      status: "open",
-      assignedTo: null,
-      declinedBy: [0, 2],
-      reportedAt: new Date().toISOString(),
-      completedAt: null,
-      completedByName: null,
-    });
-
-    const claimTrashRes = await trashRoute(
-      new Request("http://localhost/api/house/trash", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ action: "claim", roommateId: 1 }),
-      })
-    );
-    expect(claimTrashRes.status).toBe(403);
-    const trashErr = await claimTrashRes.json();
-    expect(trashErr.error).toContain("assente");
-  });
-
-  // Scenario 4: Un coinquilino torna presente e può offrirsi volontario.
-  it("Scenario 4: Un coinquilino torna presente e può offrirsi volontario", async () => {
-    // 1. Dichiara assenza
-    await repo.setRoommateAbsence(currentWeekKey, 2, true);
-
-    // Pulizia senza incaricato (tutti avevano rinunciato)
-    const week = await repo.getWeekState(currentWeekKey);
-    const task = week.cleanings[1];
-    await repo.updateCleaningTask({ ...task, assignedTo: null, assignedToName: null, declinedBy: [0, 1, 2] });
-
-    // 2. Revoca assenza (torna presente)
-    const setPresenceRes = await cleaningsRoute(
-      new Request("http://localhost/api/house/cleanings", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ action: "set_absence", weekKey: currentWeekKey, roommateId: 2, isAbsent: false }),
-      })
-    );
-    expect(setPresenceRes.status).toBe(200);
-
-    // 3. Ora può offrirsi volontario con successo
-    const claimRes = await cleaningsRoute(
-      new Request("http://localhost/api/house/cleanings", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: 2 }),
-      })
-    );
-    expect(claimRes.status).toBe(200);
-    const updated = (await claimRes.json()).week.cleanings.find((t: any) => t.id === task.id);
-    expect(updated.assignedTo).toBe(2);
   });
 
   // Scenario 5: Due coinquilini tentano contemporaneamente di prendere lo stesso incarico → soltanto uno riesce.

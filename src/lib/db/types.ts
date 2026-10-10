@@ -14,7 +14,6 @@ export interface IHouseRepository {
   updateTrashQueue(queue: number[]): Promise<void>;
 
   getWeekState(weekKey: string): Promise<WeekState>;
-  setRoommateAbsence(weekKey: string, roommateId: number, isAbsent: boolean): Promise<WeekState>;
   updateCleaningTask(
     task: CleaningTask,
     condition?: { isCompleted?: boolean; assignedTo?: number | null }

@@ -17,7 +17,6 @@ interface CleaningCardProps {
   task: CleaningTask;
   roommates: Roommate[];
   myRoommateId: number | null;
-  isAbsentThisWeek: boolean;
   isSubmitting?: boolean;
   onComplete: (taskId: string) => void;
   onDecline: (taskId: string, roommateId: number) => void;
@@ -29,7 +28,6 @@ export function CleaningCard({
   task,
   roommates,
   myRoommateId,
-  isAbsentThisWeek,
   isSubmitting = false,
   onComplete,
   onDecline,
@@ -40,7 +38,7 @@ export function CleaningCard({
   const assignedRoommate = roommates.find((r) => r.id === task.assignedTo);
   const isAssignedToMe = myRoommateId !== null && task.assignedTo === myRoommateId;
   const isUnassigned = task.assignedTo === null;
-  const canClaim = isUnassigned && myRoommateId !== null && !isAbsentThisWeek;
+  const canClaim = isUnassigned && myRoommateId !== null;
 
   // Consenti l'annullamento solo al profilo che ha registrato il completamento via ID stabile
   const myRoommate = myRoommateId !== null ? roommates.find((r) => r.id === myRoommateId) : undefined;

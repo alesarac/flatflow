@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import fs from "fs";
 import path from "path";
 import { LocalHouseRepository } from "./local";
-import { reportTrash, declineTrash, completeTrash } from "../domain/logic";
+import { reportTrash, completeTrash } from "../domain/logic";
 
 const TEST_DB_PATH = path.join(process.cwd(), "data", "test-db.json");
 
@@ -56,27 +56,9 @@ describe("LocalHouseRepository", () => {
     expect(incompleteArea2?.personName).toBe("Coinquilino 2");
   });
 
-  it("reconciles open trash task immediately when assignee declares absence (P1-04)", async () => {
-    const queue = await repo.getTrashQueue(); // [0, 1, 2]
-    const task = reportTrash(queue, [], null); // assignedTo: 0
-    await repo.createTrashTask(task);
-
-    const openBefore = await repo.getOpenTrashTask();
-    expect(openBefore?.assignedTo).toBe(0);
-
-    // Roommate 0 declares absence for week 2026-10-05
-    await repo.setRoommateAbsence("2026-10-05", 0, true);
-
-    // Open trash must be immediately reassigned to Roommate 1
-    const openAfter = await repo.getOpenTrashTask();
-    expect(openAfter?.assignedTo).toBe(1);
-    // Queue order remains untouched
-    expect(await repo.getTrashQueue()).toEqual([0, 1, 2]);
-  });
-
   it("performs atomic completion of trash and rotates queue (P1-01)", async () => {
     const queue = await repo.getTrashQueue(); // [0, 1, 2]
-    const task = reportTrash(queue, [], null); // assignedTo: 0
+    const task = reportTrash(queue, null); // assignedTo: 0
     await repo.createTrashTask(task);
 
     // Atomic completion
@@ -98,7 +80,7 @@ describe("LocalHouseRepository", () => {
     // Generate and complete 3 separate trash tasks
     for (let i = 0; i < 3; i++) {
       const queue = await repo.getTrashQueue();
-      const t = reportTrash(queue, [], null);
+      const t = reportTrash(queue, null);
       await repo.createTrashTask(t);
       await repo.completeTrashAtomic(t.id, t.assignedTo!, `Coinquilino ${(t.assignedTo! + 1)}`);
     }

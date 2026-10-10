@@ -9,15 +9,11 @@ import {
   WeekState,
 } from "../domain/types";
 import {
-  applyRoommateAbsence,
   createWeekCleanings,
-  findSubstitute,
   formatWeekLabel,
   getRomeSundayEndIso,
   getWeekKey,
   parseWeekKey,
-  reconcileOpenTrash,
-  revokeRoommateAbsence,
 } from "../domain/logic";
 import { HistoryResult, IHouseRepository } from "./types";
 
@@ -107,19 +103,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
     const { monday, sunday } = parseWeekKey(weekKey);
     const roommates = await this.getRoommates();
 
-    // 1. Lettura assenze
-    const { data: absenceData, error: absenceError } = await this.client
-      .from("weekly_absences")
-      .select("roommate_id")
-      .eq("week_key", weekKey);
-
-    if (absenceError) {
-      throw new Error(`Errore lettura assenze: ${absenceError.message}`);
-    }
-
-    const absentRoommates = absenceData ? absenceData.map((a) => a.roommate_id) : [];
-
-    // 2. Lettura compiti di pulizia
+    // Lettura compiti di pulizia
     const { data: existingTasks, error: fetchError } = await this.client
       .from("cleaning_tasks")
       .select("*")
@@ -134,7 +118,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
 
     // Se mancano i compiti (o sono meno di 3), inizializza con ON CONFLICT DO NOTHING
     if (!existingTasks || existingTasks.length < 3) {
-      const initialTasks = createWeekCleanings(weekKey, absentRoommates, roommates);
+      const initialTasks = createWeekCleanings(weekKey, roommates);
       const rows = initialTasks.map((c) => ({
         id: c.id,
         week_key: c.weekKey,
@@ -202,193 +186,8 @@ export class SupabaseHouseRepository implements IHouseRepository {
       startDate: startIso,
       endDate: endIso,
       label: formatWeekLabel(weekKey),
-      absentRoommates,
       cleanings,
     };
-  }
-
-  async setRoommateAbsence(
-    weekKey: string,
-    roommateId: number,
-    isAbsent: boolean
-  ): Promise<WeekState> {
-    const roommates = await this.getRoommates();
-    const queue = await this.getTrashQueue();
-
-    if (isAbsent) {
-      // 1. Inserisci l'assenza in weekly_absences (idempotente)
-      const { error: insErr } = await this.client
-        .from("weekly_absences")
-        .upsert(
-          { week_key: weekKey, roommate_id: roommateId },
-          { onConflict: "week_key, roommate_id", ignoreDuplicates: true }
-        );
-
-      if (insErr) {
-        throw new Error(`Errore salvataggio assenza: ${insErr.message}`);
-      }
-
-      // 2. Rileggi SEMPRE tutte le assenze correnti per gestire coinquilini che dichiarano assenza contemporaneamente
-      const { data: absRows, error: absErr } = await this.client
-        .from("weekly_absences")
-        .select("roommate_id")
-        .eq("week_key", weekKey);
-
-      if (absErr) {
-        throw new Error(`Errore lettura assenze: ${absErr.message}`);
-      }
-      const allCurrentAbsences = absRows ? absRows.map((r) => r.roommate_id) : [roommateId];
-
-      // 3. Rileggi i compiti di pulizia attuali
-      const { data: currentTasks, error: tErr } = await this.client
-        .from("cleaning_tasks")
-        .select("*")
-        .eq("week_key", weekKey);
-
-      if (tErr) {
-        throw new Error(`Errore lettura compiti pulizia: ${tErr.message}`);
-      }
-
-      if (currentTasks) {
-        for (const task of currentTasks) {
-          // Salta i compiti già completati
-          if (task.is_completed) continue;
-
-          // Se il compito è assegnato a un coinquilino attualmente assente
-          if (task.assigned_to !== null && allCurrentAbsences.includes(task.assigned_to)) {
-            const currentAssignee = task.assigned_to;
-            const nextAssignee = findSubstitute(
-              currentAssignee,
-              allCurrentAbsences,
-              task.declined_by || []
-            );
-            const nextAssigneeObj = nextAssignee !== null ? roommates.find((r) => r.id === nextAssignee) : null;
-
-            // Aggiornamento condizionale atomico: verifica che sia ancora non completato e assegnato a currentAssignee
-            const { data: updated, error: updErr } = await this.client
-              .from("cleaning_tasks")
-              .update({
-                assigned_to: nextAssignee,
-                assigned_to_name: nextAssigneeObj ? nextAssigneeObj.name : null,
-              })
-              .eq("id", task.id)
-              .eq("is_completed", false)
-              .eq("assigned_to", currentAssignee)
-              .select();
-
-            if (updErr) {
-              throw new Error(`Errore aggiornamento compito per assenza: ${updErr.message}`);
-            }
-
-            // Se 0 righe aggiornate (conflitto/corsa concorrente), rileggi lo stato aggiornato del task
-            if (!updated || updated.length === 0) {
-              const { data: freshTask } = await this.client
-                .from("cleaning_tasks")
-                .select("*")
-                .eq("id", task.id)
-                .single();
-
-              if (
-                freshTask &&
-                !freshTask.is_completed &&
-                freshTask.assigned_to !== null &&
-                allCurrentAbsences.includes(freshTask.assigned_to)
-              ) {
-                // Se è ancora assegnato a un coinquilino assente, ricalcola il sostituto e riprova
-                const retrySubstitute = findSubstitute(
-                  freshTask.assigned_to,
-                  allCurrentAbsences,
-                  freshTask.declined_by || []
-                );
-                const retryObj = retrySubstitute !== null ? roommates.find((r) => r.id === retrySubstitute) : null;
-                await this.client
-                  .from("cleaning_tasks")
-                  .update({
-                    assigned_to: retrySubstitute,
-                    assigned_to_name: retryObj ? retryObj.name : null,
-                  })
-                  .eq("id", freshTask.id)
-                  .eq("is_completed", false)
-                  .eq("assigned_to", freshTask.assigned_to);
-              }
-            }
-          }
-        }
-      }
-
-      // 4. Riconciliazione immediata della spazzatura aperta se assegnata a un assente
-      const openTrash = await this.getOpenTrashTask();
-      if (openTrash && openTrash.status === "open" && openTrash.assignedTo !== null && allCurrentAbsences.includes(openTrash.assignedTo)) {
-        const previousAssignee = openTrash.assignedTo;
-        const reconciled = reconcileOpenTrash(openTrash, queue, allCurrentAbsences);
-        if (reconciled && reconciled.assignedTo !== previousAssignee) {
-          await this.updateTrashTask(reconciled, {
-            status: "open",
-            assignedTo: previousAssignee,
-          });
-        }
-      }
-    } else {
-      // Revoca assenza
-      const { error: delErr } = await this.client
-        .from("weekly_absences")
-        .delete()
-        .eq("week_key", weekKey)
-        .eq("roommate_id", roommateId);
-
-      if (delErr) {
-        throw new Error(`Errore revoca assenza: ${delErr.message}`);
-      }
-
-      const { data: absRows, error: absErr } = await this.client
-        .from("weekly_absences")
-        .select("roommate_id")
-        .eq("week_key", weekKey);
-
-      if (absErr) {
-        throw new Error(`Errore lettura assenze: ${absErr.message}`);
-      }
-      const remainingAbsences = absRows ? absRows.map((r) => r.roommate_id) : [];
-
-      // Per le pulizie: solo se il compito era rimasto senza incaricato (assigned_to IS NULL)
-      // e chi torna non l'ha già rifiutato
-      const { data: currentTasks } = await this.client
-        .from("cleaning_tasks")
-        .select("*")
-        .eq("week_key", weekKey);
-
-      const returningRoommate = roommates.find((r) => r.id === roommateId);
-
-      if (currentTasks) {
-        for (const task of currentTasks) {
-          if (!task.is_completed && task.assigned_to === null && !(task.declined_by || []).includes(roommateId)) {
-            await this.client
-              .from("cleaning_tasks")
-              .update({
-                assigned_to: roommateId,
-                assigned_to_name: returningRoommate ? returningRoommate.name : null,
-              })
-              .eq("id", task.id)
-              .eq("is_completed", false)
-              .is("assigned_to", null);
-          }
-        }
-      }
-
-      // Riconciliazione spazzatura aperta se era rimasta senza incaricato
-      const openTrash = await this.getOpenTrashTask();
-      if (openTrash && openTrash.status === "open" && openTrash.assignedTo === null) {
-        const reconciled = reconcileOpenTrash(openTrash, queue, remainingAbsences);
-        if (reconciled && reconciled.assignedTo !== null) {
-          await this.updateTrashTask(reconciled, {
-            status: "open",
-            assignedTo: null,
-          });
-        }
-      }
-    }
-
-    return this.getWeekState(weekKey);
   }
 
 

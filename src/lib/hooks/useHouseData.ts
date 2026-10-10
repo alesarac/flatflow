@@ -228,38 +228,6 @@ export function useHouseData() {
     }
   };
 
-  const toggleAbsence = async (weekKey: string, roommateId: number, isAbsent: boolean) => {
-    setIsSubmitting(true);
-    try {
-      const res = await fetch("/api/house/cleanings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "set_absence",
-          weekKey,
-          roommateId,
-          isAbsent,
-        }),
-      });
-
-      const resJson = await res.json();
-      if (!res.ok) {
-        const msg = resJson.error || "Impossibile aggiornare l'assenza";
-        setError(msg);
-        alert(msg);
-        return false;
-      }
-
-      await fetchData();
-      return true;
-    } catch {
-      setError("Errore di rete durante l'aggiornamento dell'assenza.");
-      return false;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   // Azioni spazzatura
   const reportTrashAction = async () => {
     setIsSubmitting(true);
@@ -408,7 +376,6 @@ export function useHouseData() {
     declineCleaning,
     claimCleaning,
     uncompleteCleaning,
-    toggleAbsence,
     reportTrash: reportTrashAction,
     declineTrash: declineTrashAction,
     completeTrash: completeTrashAction,

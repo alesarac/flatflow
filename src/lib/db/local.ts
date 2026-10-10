@@ -10,23 +10,18 @@ import {
   WeekState,
 } from "../domain/types";
 import {
-  applyRoommateAbsence,
   completeTrash,
   createWeekCleanings,
-  findSubstitute,
   formatWeekLabel,
   getRomeSundayEndIso,
   getWeekKey,
   parseWeekKey,
-  reconcileOpenTrash,
-  revokeRoommateAbsence,
 } from "../domain/logic";
 import { HistoryResult, IHouseRepository } from "./types";
 
 interface StoredData {
   roommates: Roommate[];
   trashQueue: number[];
-  absences: Record<string, number[]>; // weekKey -> roommateId[]
   cleanings: Record<string, CleaningTask[]>; // weekKey -> CleaningTask[]
   trashTasks: TrashTask[];
   loginAttempts: { ip: string; timestamp: number }[];
@@ -54,7 +49,6 @@ export class LocalHouseRepository implements IHouseRepository {
     return {
       roommates: DEFAULT_ROOMMATES.map((r) => ({ ...r })),
       trashQueue: [0, 1, 2],
-      absences: {},
       cleanings: {},
       trashTasks: [],
       loginAttempts: [],
@@ -92,12 +86,10 @@ export class LocalHouseRepository implements IHouseRepository {
 
   async getWeekState(weekKey: string): Promise<WeekState> {
     const { monday, sunday } = parseWeekKey(weekKey);
-    const absences = this.data.absences[weekKey] || [];
 
     if (!this.data.cleanings[weekKey]) {
       this.data.cleanings[weekKey] = createWeekCleanings(
         weekKey,
-        absences,
         this.data.roommates
       );
       this.saveData();
@@ -111,96 +103,8 @@ export class LocalHouseRepository implements IHouseRepository {
       startDate: startIso,
       endDate: endIso,
       label: formatWeekLabel(weekKey),
-      absentRoommates: absences,
       cleanings: this.data.cleanings[weekKey],
     };
-  }
-
-  async setRoommateAbsence(
-    weekKey: string,
-    roommateId: number,
-    isAbsent: boolean
-  ): Promise<WeekState> {
-    const weekState = await this.getWeekState(weekKey);
-    let currentAbsences = this.data.absences[weekKey] || [];
-
-    if (isAbsent) {
-      if (!currentAbsences.includes(roommateId)) {
-        currentAbsences = [...currentAbsences, roommateId];
-        this.data.absences[weekKey] = currentAbsences;
-      }
-
-      // Riassegna le pulizie non completate per tutti i coinquilini attualmente assenti
-      const currentCleanings = this.data.cleanings[weekKey] || weekState.cleanings;
-      for (let i = 0; i < currentCleanings.length; i++) {
-        const task = currentCleanings[i];
-        if (!task.isCompleted && task.assignedTo !== null && currentAbsences.includes(task.assignedTo)) {
-          const next = findSubstitute(task.assignedTo, currentAbsences, task.declinedBy);
-          const nextRoommate = next !== null ? this.data.roommates.find((r) => r.id === next) : null;
-          currentCleanings[i] = {
-            ...task,
-            assignedTo: next,
-            assignedToName: nextRoommate ? nextRoommate.name : null,
-          };
-        }
-      }
-      this.data.cleanings[weekKey] = currentCleanings;
-
-      // P1-04 & P1-01: Riconcilia la spazzatura aperta in modo condizionale
-      const openTrash = await this.getOpenTrashTask();
-      if (openTrash && openTrash.status === "open" && openTrash.assignedTo !== null && currentAbsences.includes(openTrash.assignedTo)) {
-        const prevAssignee = openTrash.assignedTo;
-        const reconciled = reconcileOpenTrash(
-          openTrash,
-          this.data.trashQueue,
-          currentAbsences
-        );
-        if (reconciled && reconciled.assignedTo !== prevAssignee) {
-          await this.updateTrashTask(reconciled, {
-            status: "open",
-            assignedTo: prevAssignee,
-          });
-        }
-      }
-    } else {
-      if (currentAbsences.includes(roommateId)) {
-        currentAbsences = currentAbsences.filter((id) => id !== roommateId);
-        this.data.absences[weekKey] = currentAbsences;
-      }
-      const currentCleanings = this.data.cleanings[weekKey] || weekState.cleanings;
-      const returningRoommate = this.data.roommates.find((r) => r.id === roommateId);
-      for (let i = 0; i < currentCleanings.length; i++) {
-        const task = currentCleanings[i];
-        if (!task.isCompleted && task.assignedTo === null && !task.declinedBy.includes(roommateId)) {
-          currentCleanings[i] = {
-            ...task,
-            assignedTo: roommateId,
-            assignedToName: returningRoommate ? returningRoommate.name : null,
-          };
-        }
-      }
-      this.data.cleanings[weekKey] = currentCleanings;
-
-      // P1-04 & P1-01: Riconcilia la spazzatura aperta se era senza incaricato
-      const openTrash = await this.getOpenTrashTask();
-      if (openTrash && openTrash.status === "open" && openTrash.assignedTo === null) {
-        const reconciled = reconcileOpenTrash(
-          openTrash,
-          this.data.trashQueue,
-          currentAbsences
-        );
-        if (reconciled && reconciled.assignedTo !== null) {
-          await this.updateTrashTask(reconciled, {
-            status: "open",
-            assignedTo: null,
-          });
-        }
-      }
-    }
-
-
-    this.saveData();
-    return this.getWeekState(weekKey);
   }
 
   async updateCleaningTask(

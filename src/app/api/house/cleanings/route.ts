@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Corpo della richiesta non valido" }, { status: 400 });
   }
 
-  const { action, weekKey, taskId, roommateId, isAbsent } = body;
+  const { action, weekKey, taskId, roommateId } = body;
   const repo = getRepository();
 
   // P1-03: È consentito modificare ESCLUSIVAMENTE la settimana corrente
@@ -67,10 +67,10 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      // Se l'attività era senza incaricato (tutti assenti/rinunce), chi la esegue non deve essere assente o aver già rinunciato
-      if (weekState.absentRoommates.includes(roommateId) || task.declinedBy.includes(roommateId)) {
+      // Se l'attività era senza incaricato (rinunce), chi la esegue non deve aver già rinunciato
+      if (task.declinedBy.includes(roommateId)) {
         return NextResponse.json(
-          { error: "Un coinquilino assente o che ha già rinunciato non può farsi carico dell'attività." },
+          { error: "Un coinquilino che ha rinunciato non può farsi carico dell'attività senza prima offrirsi volontario." },
           { status: 403 }
         );
       }
@@ -131,7 +131,6 @@ export async function POST(req: Request) {
 
     const updatedTask = declineCleaningTask(
       task,
-      weekState.absentRoommates,
       roommateId,
       roommates
     );
@@ -180,18 +179,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Coinquilino presente: i coinquilini assenti non possono prendere l'incarico
-    if (weekState.absentRoommates.includes(roommateId)) {
-      return NextResponse.json(
-        { error: "Un coinquilino assente non può prendere in carico l'attività." },
-        { status: 403 }
-      );
-    }
-
     // Assegna al volontario e rimuove l'eventuale sua precedente rinuncia da declinedBy
     const updatedTask = claimCleaningTask(
       task,
-      weekState.absentRoommates,
       roommateId,
       roommates
     );
@@ -251,7 +241,6 @@ export async function POST(req: Request) {
     // Ripristina lo stato precedente e l'assegnatario legittimo
     const uncompletedTask = uncompleteCleaningTask(
       task,
-      weekState.absentRoommates,
       roommates
     );
 
@@ -268,15 +257,6 @@ export async function POST(req: Request) {
     }
 
     const updatedWeek = await repo.getWeekState(weekKey);
-    return NextResponse.json({ success: true, week: updatedWeek });
-  }
-
-  if (action === "set_absence") {
-    if (typeof roommateId !== "number" || typeof isAbsent !== "boolean") {
-      return NextResponse.json({ error: "Parametri assenza non validi" }, { status: 400 });
-    }
-
-    const updatedWeek = await repo.setRoommateAbsence(weekKey, roommateId, isAbsent);
     return NextResponse.json({ success: true, week: updatedWeek });
   }
 

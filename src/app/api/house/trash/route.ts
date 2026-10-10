@@ -2,11 +2,9 @@ import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
 import {
-  getWeekKey,
   reportTrash,
   declineTrash,
   claimTrashTask,
-  reconcileOpenTrash,
 } from "@/lib/domain/logic";
 
 export async function POST(req: Request) {
@@ -24,33 +22,12 @@ export async function POST(req: Request) {
 
   const { action, roommateId } = body;
   const repo = getRepository();
-  const currentWeekKey = getWeekKey(new Date());
 
-  const [queue, rawOpenTask, currentWeek, roommates] = await Promise.all([
+  const [queue, openTask, roommates] = await Promise.all([
     repo.getTrashQueue(),
     repo.getOpenTrashTask(),
-    repo.getWeekState(currentWeekKey),
     repo.getRoommates(),
   ]);
-
-  let openTask = rawOpenTask;
-  if (openTask && openTask.status === "open") {
-    const previousAssignee = openTask.assignedTo;
-    const reconciled = reconcileOpenTrash(openTask, queue, currentWeek.absentRoommates);
-    if (reconciled && reconciled.assignedTo !== previousAssignee) {
-      const updated = await repo.updateTrashTask(reconciled, {
-        status: "open",
-        assignedTo: previousAssignee,
-      });
-      if (updated) {
-        openTask = reconciled;
-      } else {
-        openTask = await repo.getOpenTrashTask();
-      }
-    }
-  }
-
-
 
   if (action === "report") {
     if (openTask && openTask.status === "open") {
@@ -61,7 +38,7 @@ export async function POST(req: Request) {
     }
 
     try {
-      const newTask = reportTrash(queue, currentWeek.absentRoommates, openTask);
+      const newTask = reportTrash(queue, openTask);
       await repo.createTrashTask(newTask);
       return NextResponse.json({ success: true, openTrashTask: newTask, trashQueue: queue });
     } catch (err: unknown) {
@@ -87,7 +64,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const updatedTask = declineTrash(openTask, queue, currentWeek.absentRoommates, roommateId);
+    const updatedTask = declineTrash(openTask, queue, roommateId);
     const updated = await repo.updateTrashTask(updatedTask, {
       status: "open",
       assignedTo: roommateId,
@@ -127,10 +104,10 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      // Se era senza assegnatario, chi la butta non deve essere assente
-      if (currentWeek.absentRoommates.includes(roommateId)) {
+      // Se era senza assegnatario, chi la butta non deve aver già rinunciato senza offrirsi volontario
+      if (openTask.declinedBy.includes(roommateId)) {
         return NextResponse.json(
-          { error: "Un coinquilino assente non può completare la spazzatura." },
+          { error: "Un coinquilino che ha rinunciato non può farsi carico della spazzatura senza prima offrirsi volontario." },
           { status: 403 }
         );
       }
@@ -151,7 +128,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nessun incarico di spazzatura aperto" }, { status: 404 });
     }
 
-    // Il claim è consentito SOLO se l'incarico è attualmente privo di assegnatario (tutti assenti/rinunce)
+    // Il claim è consentito SOLO se l'incarico è attualmente privo di assegnatario (tutti hanno rinunciato)
     if (openTask.assignedTo !== null) {
       return NextResponse.json(
         { error: "L'incarico ha già un assegnatario." },
@@ -168,15 +145,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
     }
 
-    if (currentWeek.absentRoommates.includes(roommateId)) {
-      return NextResponse.json(
-        { error: "Un coinquilino assente non può prendere in carico la spazzatura." },
-        { status: 403 }
-      );
-    }
-
     // Assegna al volontario e rimuove l'eventuale sua precedente rinuncia da declinedBy
-    const updatedTask = claimTrashTask(openTask, currentWeek.absentRoommates, roommateId);
+    const updatedTask = claimTrashTask(openTask, roommateId);
     const updated = await repo.updateTrashTask(updatedTask, {
       status: "open",
       assignedTo: null,

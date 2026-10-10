@@ -6,7 +6,6 @@ import { AuthGate } from "../components/AuthGate";
 import { Header } from "../components/Header";
 import { Navigation, TabType } from "../components/Navigation";
 import { RoommatePickerModal } from "../components/RoommatePickerModal";
-import { AbsenceBanner } from "../components/AbsenceBanner";
 import { CleaningCard } from "../components/CleaningCard";
 import { TrashCard } from "../components/TrashCard";
 import { HistoryView } from "../components/HistoryView";
@@ -29,7 +28,6 @@ export default function HomePage() {
     declineCleaning,
     claimCleaning,
     uncompleteCleaning,
-    toggleAbsence,
     reportTrash,
     declineTrash,
     completeTrash,
@@ -64,9 +62,6 @@ export default function HomePage() {
   const activeRoommate =
     myRoommateId !== null ? roommates.find((r) => r.id === myRoommateId) : undefined;
 
-  const isMeAbsent =
-    myRoommateId !== null && currentWeek ? currentWeek.absentRoommates.includes(myRoommateId) : false;
-
   // Calcolo delle attività pendenti assegnate all'utente attivo
   let pendingDutiesCount = 0;
   if (myRoommateId !== null && currentWeek) {
@@ -100,18 +95,7 @@ export default function HomePage() {
               cleanings={currentWeek.cleanings}
             />
 
-            {/* 2. Presenze settimana */}
-            <AbsenceBanner
-              roommates={roommates}
-              absentRoommates={currentWeek.absentRoommates}
-              myRoommateId={myRoommateId}
-              onToggleAbsence={(rId, isAbsent) =>
-                toggleAbsence(currentWeek.weekKey, rId, isAbsent)
-              }
-              onOpenPicker={() => setShowPickerModal(true)}
-            />
-
-            {/* 3. Spazzatura */}
+            {/* 2. Spazzatura */}
             <section className="space-y-2.5">
               <div className="flex items-center justify-between px-0.5">
                 <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
@@ -126,7 +110,6 @@ export default function HomePage() {
                 trashQueue={trashQueue}
                 roommates={roommates}
                 myRoommateId={myRoommateId}
-                isAbsentThisWeek={isMeAbsent}
                 isSubmitting={isSubmitting}
                 onReport={reportTrash}
                 onDecline={declineTrash}
@@ -135,7 +118,7 @@ export default function HomePage() {
               />
             </section>
 
-            {/* 4. Pulizie della settimana */}
+            {/* 3. Pulizie della settimana */}
             <section className="space-y-3">
               <div className="flex items-center justify-between px-0.5">
                 <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
@@ -150,7 +133,6 @@ export default function HomePage() {
                     task={task}
                     roommates={roommates}
                     myRoommateId={myRoommateId}
-                    isAbsentThisWeek={isMeAbsent}
                     isSubmitting={isSubmitting || submittingTaskId === task.id}
                     onComplete={(taskId) => {
                       if (myRoommateId !== null) {

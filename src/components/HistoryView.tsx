@@ -108,37 +108,46 @@ export function HistoryView() {
     }
   };
 
+  const getItemStyle = (item: HistoryItem) => {
+    if (item.type === "trash") {
+      return {
+        card: "bg-[#FFF1F2] border-[#FECDD3] dark:bg-rose-950/20 dark:border-rose-900/40",
+        iconBox: "bg-rose-100/70 border-rose-200/60 text-rose-500 dark:bg-rose-900/30 dark:border-rose-800/40 dark:text-rose-400",
+        badge: "text-rose-700 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-950/60 border-rose-200/80 dark:border-rose-800/60",
+        badgeText: "Buttata",
+      };
+    }
+    if (item.status === "completed") {
+      return {
+        card: "bg-[#EAF9F1] border-[#C6EED8] dark:bg-emerald-950/20 dark:border-emerald-900/40",
+        iconBox: "bg-emerald-100/70 border-emerald-200/60 text-emerald-600 dark:bg-emerald-950/50 dark:border-emerald-800/40 dark:text-emerald-400",
+        badge: "text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 border-emerald-200/80 dark:border-emerald-800/60",
+        badgeText: "Completata",
+      };
+    }
+    return {
+      card: "bg-[#FFFAE8] border-[#F5E9B7] dark:bg-amber-950/20 dark:border-amber-900/40",
+      iconBox: "bg-amber-100/70 border-amber-200/60 text-amber-600 dark:bg-amber-950/50 dark:border-amber-800/40 dark:text-amber-400",
+      badge: "text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/60 border-amber-200/80 dark:border-amber-800/60",
+      badgeText: "Incompleta",
+    };
+  };
+
   const renderItemIcon = (item: HistoryItem) => {
     if (item.type === "trash") {
-      return (
-        <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border bg-rose-50/80 text-rose-500 border-rose-100/80 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/40">
-          <Trash2 className="w-5 h-5" />
-        </div>
-      );
+      return <Trash2 className="w-5 h-5" />;
     }
 
     const titleLower = item.title.toLowerCase();
     if (item.areaId === 0 || titleLower.includes("cucina")) {
-      return (
-        <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border bg-indigo-50/70 text-indigo-500 border-indigo-100/70 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900/40">
-          <UtensilsCrossed className="w-5 h-5" />
-        </div>
-      );
+      return <UtensilsCrossed className="w-5 h-5" />;
     }
 
     if (item.areaId === 1 || titleLower.includes("bagno")) {
-      return (
-        <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border bg-indigo-50/70 text-indigo-500 border-indigo-100/70 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900/40">
-          <Sparkles className="w-5 h-5" />
-        </div>
-      );
+      return <Sparkles className="w-5 h-5" />;
     }
 
-    return (
-      <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border bg-indigo-50/70 text-indigo-500 border-indigo-100/70 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900/40">
-        <DoorOpen className="w-5 h-5" />
-      </div>
-    );
+    return <DoorOpen className="w-5 h-5" />;
   };
 
   const getCleanTitle = (item: HistoryItem) => {
@@ -153,21 +162,21 @@ export function HistoryView() {
       {/* Intestazione Storico */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-[22px] font-bold text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
             Storico attività
           </h2>
-          <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
-            Pulizie e spazzatura degli ultimi mesi
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+            Pulizie e spazzatura registrate
           </p>
         </div>
         <button
           onClick={() => fetchHistory(0)}
           disabled={loading || loadingMore}
           type="button"
-          className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-900 border border-slate-200/80 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200 active:scale-95 transition-all disabled:opacity-50 shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-900 border border-slate-200/80 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200 active:scale-95 transition-all disabled:opacity-50 shadow-sm inline-flex items-center justify-center outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           title="Aggiorna storico"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#4355EC] dark:text-indigo-400" : ""}`} />
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#365672] dark:text-slate-300" : ""}`} />
         </button>
       </div>
 
@@ -179,14 +188,14 @@ export function HistoryView() {
 
       {loading && history.length === 0 ? (
         <div className="py-12 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
-          <Loader2 className="w-5 h-5 text-indigo-600 dark:text-indigo-500 animate-spin" />
+          <Loader2 className="w-5 h-5 text-[#365672] dark:text-slate-300 animate-spin" />
           <span>Caricamento storico in corso...</span>
         </div>
       ) : history.length === 0 ? (
         <div className="py-12 text-center space-y-2 bg-white dark:bg-slate-850/90 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Nessuna attività registrata</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Le pulizie completate o incomplete e la spazzatura appariranno qui cronologicamente.
+            Le attività registrate appariranno qui cronologicamente.
           </p>
         </div>
       ) : (
@@ -197,17 +206,21 @@ export function HistoryView() {
                 {group.monthLabel}
               </h3>
 
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {group.items.map((item) => {
-                  const isCompleted = item.status === "completed";
+                  const style = getItemStyle(item);
 
                   return (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 shadow-sm transition-colors"
+                      className={`flex items-center justify-between p-3.5 rounded-2xl border shadow-sm transition-colors ${style.card}`}
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
-                        {renderItemIcon(item)}
+                        <div
+                          className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${style.iconBox}`}
+                        >
+                          {renderItemIcon(item)}
+                        </div>
 
                         <div className="min-w-0">
                           <div className="font-bold text-slate-900 dark:text-white text-sm leading-tight truncate">
@@ -224,15 +237,11 @@ export function HistoryView() {
                           {formatDate(item.date)}
                         </div>
                         <div className="mt-1">
-                          {isCompleted ? (
-                            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/40 px-2.5 py-0.5 rounded-full inline-block">
-                              Completata
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/40 px-2.5 py-0.5 rounded-full inline-block">
-                              Incompleta
-                            </span>
-                          )}
+                          <span
+                            className={`text-[11px] font-semibold border px-2.5 py-0.5 rounded-full inline-block shadow-sm ${style.badge}`}
+                          >
+                            {style.badgeText}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -248,12 +257,12 @@ export function HistoryView() {
                 onClick={() => fetchHistory(history.length)}
                 disabled={loadingMore}
                 type="button"
-                className="py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 text-indigo-600 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-indigo-400 dark:border-slate-700/80 text-xs font-semibold active:scale-95 transition-all inline-flex items-center gap-2 disabled:opacity-50 shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="min-h-[44px] py-2.5 px-5 rounded-xl bg-white hover:bg-slate-50 text-[#365672] dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold active:scale-95 transition-all inline-flex items-center gap-2 disabled:opacity-50 shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
                 {loadingMore ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <ArrowDown className="w-3.5 h-3.5" />
+                  <ArrowDown className="w-3.5 h-3.5 text-[#365672] dark:text-slate-300" />
                 )}
                 <span>Carica altre attività</span>
               </button>

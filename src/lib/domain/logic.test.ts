@@ -10,13 +10,10 @@ import {
   findSubstitute,
   createWeekCleanings,
   declineCleaningTask,
-  applyRoommateAbsence,
-  revokeRoommateAbsence,
   findNextTrashAssignee,
   reportTrash,
   declineTrash,
   completeTrash,
-  reconcileOpenTrash,
   determineCleaningAssignee,
   uncompleteCleaningTask,
   claimCleaningTask,
@@ -87,7 +84,6 @@ describe("Europe/Rome Calendar & Week Helpers (P1-05)", () => {
   });
 });
 
-
 describe("Weekly Cleaning 3-Week Rotation & Name Snapshots", () => {
   it("follows the exact 3-week cyclical rotation and saves assignedToName snapshot", () => {
     const w0 = getRotationWeekIndex("2026-01-05");
@@ -105,7 +101,7 @@ describe("Weekly Cleaning 3-Week Rotation & Name Snapshots", () => {
     expect(getBaseAssignment(1, w0)).toBe(1); // Bagno -> 1
     expect(getBaseAssignment(2, w0)).toBe(2); // Ingresso -> 2
 
-    const tasks = createWeekCleanings("2026-01-05", [], DEFAULT_ROOMMATES);
+    const tasks = createWeekCleanings("2026-01-05", DEFAULT_ROOMMATES);
     expect(tasks).toHaveLength(3);
     expect(tasks[0].assignedTo).toBe(0);
     expect(tasks[0].assignedToName).toBe("Coinquilino 1");
@@ -118,60 +114,41 @@ describe("Weekly Cleaning 3-Week Rotation & Name Snapshots", () => {
 
 describe("Cleaning Substitutions & Strict Assignee Validation (P1-02)", () => {
   it("prevents decline if declining roommate is not the current assignee", () => {
-    const tasks = createWeekCleanings("2026-01-05", [], DEFAULT_ROOMMATES);
+    const tasks = createWeekCleanings("2026-01-05", DEFAULT_ROOMMATES);
     const cucina = tasks[0]; // assignedTo: 0
 
     // Roommate 1 tries to decline Roommate 0's task -> must throw!
-    expect(() => declineCleaningTask(cucina, [], 1, DEFAULT_ROOMMATES)).toThrow(
+    expect(() => declineCleaningTask(cucina, 1, DEFAULT_ROOMMATES)).toThrow(
       "Solo l'incaricato assegnato può rinunciare a questa attività."
     );
   });
 
   it("reassigns correctly and updates assignedToName when assignee declines", () => {
-    const tasks = createWeekCleanings("2026-01-05", [], DEFAULT_ROOMMATES);
+    const tasks = createWeekCleanings("2026-01-05", DEFAULT_ROOMMATES);
     const cucina = tasks[0]; // assignedTo: 0, "Coinquilino 1"
 
-    const declinedOnce = declineCleaningTask(cucina, [], 0, DEFAULT_ROOMMATES);
+    const declinedOnce = declineCleaningTask(cucina, 0, DEFAULT_ROOMMATES);
     expect(declinedOnce.assignedTo).toBe(1);
     expect(declinedOnce.assignedToName).toBe("Coinquilino 2");
     expect(declinedOnce.declinedBy).toEqual([0]);
 
-    const declinedTwice = declineCleaningTask(declinedOnce, [], 1, DEFAULT_ROOMMATES);
+    const declinedTwice = declineCleaningTask(declinedOnce, 1, DEFAULT_ROOMMATES);
     expect(declinedTwice.assignedTo).toBe(2);
     expect(declinedTwice.assignedToName).toBe("Coinquilino 3");
 
-    const declinedAll = declineCleaningTask(declinedTwice, [], 2, DEFAULT_ROOMMATES);
+    const declinedAll = declineCleaningTask(declinedTwice, 2, DEFAULT_ROOMMATES);
     expect(declinedAll.assignedTo).toBe(null);
     expect(declinedAll.assignedToName).toBe(null);
   });
 });
 
-describe("Absences during Weekly Cleanings", () => {
-  it("assigns to substitute initially if roommate is already absent at week start", () => {
-    const tasks = createWeekCleanings("2026-01-05", [0], DEFAULT_ROOMMATES);
-    const cucina = tasks.find((t) => t.areaId === 0)!;
-    expect(cucina.assignedTo).toBe(1);
-    expect(cucina.assignedToName).toBe("Coinquilino 2");
-  });
-
-  it("preserves already transferred tasks when absence is revoked before week end", () => {
-    const tasks = createWeekCleanings("2026-01-05", [], DEFAULT_ROOMMATES);
-    const tasksWithAbsence = applyRoommateAbsence(tasks, 0, [], DEFAULT_ROOMMATES);
-    expect(tasksWithAbsence[0].assignedTo).toBe(1);
-
-    // Roommate 0 revokes absence
-    const revoked = revokeRoommateAbsence(tasksWithAbsence, 0, [], DEFAULT_ROOMMATES);
-    expect(revoked[0].assignedTo).toBe(1); // Task remains with roommate 1!
-  });
-});
-
-describe("Trash Management & Reconciliation on Absence (P1-01, P1-02, P1-04)", () => {
+describe("Trash Management & Declining (P1-01, P1-02)", () => {
   it("strictly validates that only assigned roommate can decline or complete trash", () => {
     const queue = [0, 1, 2];
-    const task = reportTrash(queue, [], null); // assignedTo: 0
+    const task = reportTrash(queue, null); // assignedTo: 0
 
     // Roommate 1 tries to decline -> must throw!
-    expect(() => declineTrash(task, queue, [], 1)).toThrow(
+    expect(() => declineTrash(task, queue, 1)).toThrow(
       "Solo l'incaricato attuale della spazzatura può rinunciare."
     );
 
@@ -186,63 +163,22 @@ describe("Trash Management & Reconciliation on Absence (P1-01, P1-02, P1-04)", (
     expect(updatedQueue).toEqual([1, 2, 0]);
   });
 
-  it("reconciles open trash immediately when current assignee becomes absent (P1-04)", () => {
+  it("advances to next in queue on decline and sets null when all decline", () => {
     const queue = [0, 1, 2];
-    const task = reportTrash(queue, [], null); // assignedTo: 0
+    const task = reportTrash(queue, null); // assignedTo: 0
     expect(task.assignedTo).toBe(0);
 
-    // Roommate 0 becomes absent: reconcileOpenTrash reassigns to Roommate 1
-    const reconciled = reconcileOpenTrash(task, queue, [0]);
-    expect(reconciled?.assignedTo).toBe(1);
-    // Queue order remains unchanged!
-    expect(queue).toEqual([0, 1, 2]);
+    const declined0 = declineTrash(task, queue, 0);
+    expect(declined0.assignedTo).toBe(1);
+    expect(declined0.declinedBy).toEqual([0]);
 
-    // If both 0 and 1 are absent, reassigns to Roommate 2
-    const reconciled2 = reconcileOpenTrash(task, queue, [0, 1]);
-    expect(reconciled2?.assignedTo).toBe(2);
+    const declined1 = declineTrash(declined0, queue, 1);
+    expect(declined1.assignedTo).toBe(2);
+    expect(declined1.declinedBy).toEqual([0, 1]);
 
-    // If all are absent, assignedTo becomes null
-    const reconciledAll = reconcileOpenTrash(task, queue, [0, 1, 2]);
-    expect(reconciledAll?.assignedTo).toBe(null);
-  });
-
-  it("reconciles unassigned trash when a roommate returns from absence (P1-04)", () => {
-    const queue = [0, 1, 2];
-    // Task was unassigned because everyone was absent
-    const task = reportTrash(queue, [0, 1, 2], null);
-    expect(task.assignedTo).toBe(null);
-
-    // Roommate 1 returns from absence (0 and 2 still absent)
-    const reconciled = reconcileOpenTrash(task, queue, [0, 2]);
-    expect(reconciled?.assignedTo).toBe(1);
-  });
-
-  it("does not re-assign to a roommate who has already declined even if returning from absence", () => {
-    const queue = [0, 1, 2];
-    const task = reportTrash(queue, [], null); // assignedTo: 0
-    const declined0 = declineTrash(task, queue, [], 0); // assignedTo: 1, declinedBy: [0]
-
-    // Roommate 1 becomes absent, 0 returns
-    declined0.assignedTo = null; // simulate both unavailable
-    const reconciled = reconcileOpenTrash(declined0, queue, [1]); // Roommate 0 is not absent, but declinedBy includes 0
-    // Roommate 2 should get it because 0 already declined!
-    expect(reconciled?.assignedTo).toBe(2);
-  });
-
-  it("reconciles open trash without assignee when entering a new week with no absences (P1-03)", () => {
-    const queue = [0, 1, 2];
-    // In week 1: all roommates were absent, trash was reported with assignedTo = null
-    const task = reportTrash(queue, [0, 1, 2], null);
-    expect(task.assignedTo).toBe(null);
-    expect(task.status).toBe("open");
-
-    // On Monday morning of week 2: absences are reset to []
-    // reconcileOpenTrash must assign to the first available in queue (Roommate 0)
-    const reconciled = reconcileOpenTrash(task, queue, []);
-    expect(reconciled?.assignedTo).toBe(0);
-    expect(reconciled?.status).toBe("open");
-    // Queue order must be strictly preserved
-    expect(queue).toEqual([0, 1, 2]);
+    const declined2 = declineTrash(declined1, queue, 2);
+    expect(declined2.assignedTo).toBe(null);
+    expect(declined2.declinedBy).toEqual([0, 1, 2]);
   });
 });
 
@@ -251,7 +187,7 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
 
   it("restores standard completed cleaning task to uncompleted state with correct assignee", () => {
     // Week 2026-10-05 has rotation index 0. Area 0 is assigned to Roommate 0.
-    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
     const task = cleanings[0];
     expect(task.assignedTo).toBe(0);
 
@@ -263,7 +199,7 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
       completedByName: "Coinquilino 1",
     };
 
-    const undone = uncompleteCleaningTask(completedTask, [], roommates);
+    const undone = uncompleteCleaningTask(completedTask, roommates);
     expect(undone.isCompleted).toBe(false);
     expect(undone.completedAt).toBeNull();
     expect(undone.completedByName).toBeNull();
@@ -272,8 +208,8 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
   });
 
   it("restores assignment to correct substitute if a decline was recorded before completion", () => {
-    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
-    const declined = declineCleaningTask(cleanings[0], [], 0, roommates);
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    const declined = declineCleaningTask(cleanings[0], 0, roommates);
     expect(declined.assignedTo).toBe(1);
     expect(declined.declinedBy).toEqual([0]);
 
@@ -285,7 +221,7 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
       completedByName: "Coinquilino 2",
     };
 
-    const undone = uncompleteCleaningTask(completed, [], roommates);
+    const undone = uncompleteCleaningTask(completed, roommates);
     expect(undone.isCompleted).toBe(false);
     expect(undone.completedAt).toBeNull();
     expect(undone.completedByName).toBeNull();
@@ -295,62 +231,24 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
     expect(undone.declinedBy).toEqual([0]);
   });
 
-  it("handles subsequent absence of assignee during completed state", () => {
-    // Task was assigned to 1 and completed by 1
-    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
-    const completed = {
-      ...cleanings[1], // assignedTo: 1
-      isCompleted: true,
-      completedAt: new Date().toISOString(),
-      completedByName: "Coinquilino 2",
-      completedBy: 1,
-    };
-
-    // Roommate 1 became absent afterwards
-    const undone = uncompleteCleaningTask(completed, [1], roommates);
-    expect(undone.isCompleted).toBe(false);
-    expect(undone.completedBy).toBeNull();
-    // Since 1 is absent, substitute is found (2)
-    expect(undone.assignedTo).toBe(2);
-    expect(undone.assignedToName).toBe("Coinquilino 3");
-  });
-
-  it("preserves assignedTo: null for originally unassigned tasks on uncomplete", () => {
-    const cleanings = createWeekCleanings("2026-10-05", [0, 1, 2], roommates);
-    const unassigned = cleanings[0];
-    expect(unassigned.assignedTo).toBeNull();
-
-    const completed = {
-      ...unassigned,
-      isCompleted: true,
-      completedAt: new Date().toISOString(),
-      completedByName: "Coinquilino 1",
-      completedBy: 0,
-    };
-
-    const undone = uncompleteCleaningTask(completed, [1, 2], roommates);
-    expect(undone.isCompleted).toBe(false);
-    expect(undone.completedBy).toBeNull();
-    expect(undone.assignedTo).toBeNull();
-    expect(undone.assignedToName).toBeNull();
-  });
-
-  it("restores assignedTo: null if task was originally without an assignee (all declined or absent)", () => {
-    const cleanings = createWeekCleanings("2026-10-05", [1, 2], roommates);
-    // Area 0 base is 0. 0 declines: 1 and 2 are absent so no substitute available
-    const declined0 = declineCleaningTask(cleanings[0], [1, 2], 0, roommates);
-    expect(declined0.assignedTo).toBeNull();
+  it("restores assignedTo: null if task was originally without an assignee (all declined)", () => {
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    let task = cleanings[0];
+    task = declineCleaningTask(task, 0, roommates);
+    task = declineCleaningTask(task, 1, roommates);
+    task = declineCleaningTask(task, 2, roommates);
+    expect(task.assignedTo).toBeNull();
 
     // A volunteer completes it
     const completed = {
-      ...declined0,
+      ...task,
       isCompleted: true,
       completedAt: new Date().toISOString(),
       completedByName: "Coinquilino 1",
       completedBy: 0,
     };
 
-    const undone = uncompleteCleaningTask(completed, [1, 2], roommates);
+    const undone = uncompleteCleaningTask(completed, roommates);
     expect(undone.isCompleted).toBe(false);
     expect(undone.completedAt).toBeNull();
     expect(undone.completedByName).toBeNull();
@@ -360,8 +258,8 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
   });
 
   it("throws error when attempting to uncomplete an already uncompleted task", () => {
-    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
-    expect(() => uncompleteCleaningTask(cleanings[0], [], roommates)).toThrow(
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    expect(() => uncompleteCleaningTask(cleanings[0], roommates)).toThrow(
       "L'attività non risulta completata."
     );
   });
@@ -375,90 +273,83 @@ describe("Claiming Unassigned Tasks Domain Logic (Section 1)", () => {
   ];
 
   it("claims an unassigned cleaning task, removes previous decline, leaves isCompleted false", () => {
-    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
     let task = cleanings[0]; // assigned to 0
 
     // 0 declines -> assigned to 1
-    task = declineCleaningTask(task, [], 0, roommates);
+    task = declineCleaningTask(task, 0, roommates);
     // 1 declines -> assigned to 2
-    task = declineCleaningTask(task, [], 1, roommates);
+    task = declineCleaningTask(task, 1, roommates);
     // 2 declines -> assigned to null (unassigned)
-    task = declineCleaningTask(task, [], 2, roommates);
+    task = declineCleaningTask(task, 2, roommates);
 
     expect(task.assignedTo).toBeNull();
     expect(task.declinedBy).toEqual([0, 1, 2]);
 
     // Roommate 0 changes mind and claims
-    const claimed = claimCleaningTask(task, [], 0, roommates);
+    const claimed = claimCleaningTask(task, 0, roommates);
     expect(claimed.assignedTo).toBe(0);
     expect(claimed.assignedToName).toBe("Coinquilino 1");
     expect(claimed.declinedBy).toEqual([1, 2]); // 0 removed from declinedBy
     expect(claimed.isCompleted).toBe(false);
 
     // Now roommate 0 can decline again if needed
-    const declinedAgain = declineCleaningTask(claimed, [], 0, roommates);
+    const declinedAgain = declineCleaningTask(claimed, 0, roommates);
     expect(declinedAgain.assignedTo).toBeNull();
     expect(declinedAgain.declinedBy).toContain(0);
   });
 
-  it("rejects claiming a cleaning if already assigned or completed or absent", () => {
-    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
+  it("rejects claiming a cleaning if already assigned or completed", () => {
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
     const task = cleanings[0]; // assigned to 0
 
     // Cannot claim already assigned task
-    expect(() => claimCleaningTask(task, [], 1, roommates)).toThrow(
+    expect(() => claimCleaningTask(task, 1, roommates)).toThrow(
       "L'attività ha già un incaricato assegnato."
     );
 
-    // Unassigned task but claimant is absent
     const unassigned = { ...task, assignedTo: null, assignedToName: null };
-    expect(() => claimCleaningTask(unassigned, [1], 1, roommates)).toThrow(
-      "Un coinquilino assente non può prendere in carico l'attività."
-    );
 
     // Already completed
     const completed = { ...unassigned, isCompleted: true };
-    expect(() => claimCleaningTask(completed, [], 1, roommates)).toThrow(
+    expect(() => claimCleaningTask(completed, 1, roommates)).toThrow(
       "L'attività risulta già completata."
     );
   });
 
   it("claims an unassigned trash task, removes previous decline, leaves open", () => {
     const trashQueue = [0, 1, 2];
-    let openTrash = reportTrash(trashQueue, [], null); // assigned to 0
+    let openTrash = reportTrash(trashQueue, null); // assigned to 0
     expect(openTrash.assignedTo).toBe(0);
 
     // 0 declines -> assigned to 1
-    openTrash = declineTrash(openTrash, trashQueue, [], 0);
+    openTrash = declineTrash(openTrash, trashQueue, 0);
     // 1 declines -> assigned to 2
-    openTrash = declineTrash(openTrash, trashQueue, [], 1);
+    openTrash = declineTrash(openTrash, trashQueue, 1);
     // 2 declines -> assigned to null
-    openTrash = declineTrash(openTrash, trashQueue, [], 2);
+    openTrash = declineTrash(openTrash, trashQueue, 2);
 
     expect(openTrash.assignedTo).toBeNull();
     expect(openTrash.declinedBy).toEqual([0, 1, 2]);
 
     // Roommate 1 changes mind and claims
-    const claimed = claimTrashTask(openTrash, [], 1);
+    const claimed = claimTrashTask(openTrash, 1);
     expect(claimed.assignedTo).toBe(1);
     expect(claimed.declinedBy).toEqual([0, 2]); // 1 removed from declinedBy
     expect(claimed.status).toBe("open");
   });
 
-  it("rejects claiming trash if already assigned or closed or absent", () => {
-    const openTrash = reportTrash([0, 1, 2], [], null); // assigned to 0
+  it("rejects claiming trash if already assigned or closed", () => {
+    const openTrash = reportTrash([0, 1, 2], null); // assigned to 0
 
-    expect(() => claimTrashTask(openTrash, [], 1)).toThrow(
+    expect(() => claimTrashTask(openTrash, 1)).toThrow(
       "L'incarico di spazzatura ha già un assegnatario."
     );
 
     const unassigned = { ...openTrash, assignedTo: null };
-    expect(() => claimTrashTask(unassigned, [2], 2)).toThrow(
-      "Un coinquilino assente non può prendere in carico la spazzatura."
-    );
 
     const completed = { ...unassigned, status: "completed" as const };
-    expect(() => claimTrashTask(completed, [], 1)).toThrow(
+    expect(() => claimTrashTask(completed, 1)).toThrow(
       "L'incarico di spazzatura non è aperto."
     );
   });
@@ -481,8 +372,6 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
   });
 
   it("1 cleaning completed: 1st segment is green (true) regardless of which area was cleaned", () => {
-    // Fundamental example from specification:
-    // If area 2 (Ingresso e corridoio) is completed FIRST, segment 0 must be true, NOT segment 2!
     const onlyArea2Done = [
       { areaId: 0, isCompleted: false },
       { areaId: 1, isCompleted: false },
@@ -490,7 +379,6 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
     ];
     expect(getWeeklyProgressBarSegments(onlyArea2Done)).toEqual([true, false, false]);
 
-    // If area 1 (Bagno) is completed first:
     const onlyArea1Done = [
       { areaId: 0, isCompleted: false },
       { areaId: 1, isCompleted: true },
@@ -498,7 +386,6 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
     ];
     expect(getWeeklyProgressBarSegments(onlyArea1Done)).toEqual([true, false, false]);
 
-    // If area 0 (Cucina) is completed first:
     const onlyArea0Done = [
       { areaId: 0, isCompleted: true },
       { areaId: 1, isCompleted: false },
@@ -508,7 +395,6 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
   });
 
   it("2 cleanings completed: 1st and 2nd segments are green, 3rd is gray, regardless of order", () => {
-    // Area 2 and Area 0 done
     const area2And0Done = [
       { areaId: 0, isCompleted: true },
       { areaId: 1, isCompleted: false },
@@ -516,7 +402,6 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
     ];
     expect(getWeeklyProgressBarSegments(area2And0Done)).toEqual([true, true, false]);
 
-    // Area 1 and Area 2 done
     const area1And2Done = [
       { areaId: 0, isCompleted: false },
       { areaId: 1, isCompleted: true },
@@ -535,8 +420,7 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
   });
 
   it("correctly regresses from N to N-1 (always from right to left) upon undoing cleanings", () => {
-    // Start with all 3 completed
-    const baseTasks = createWeekCleanings("2026-10-05", [], roommates);
+    const baseTasks = createWeekCleanings("2026-10-05", roommates);
     const task0 = { ...baseTasks[0], isCompleted: true, completedBy: 0, completedByName: "Coinquilino 1" };
     const task1 = { ...baseTasks[1], isCompleted: true, completedBy: 1, completedByName: "Coinquilino 2" };
     const task2 = { ...baseTasks[2], isCompleted: true, completedBy: 2, completedByName: "Coinquilino 3" };
@@ -545,22 +429,18 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
     expect(getWeeklyProgressBarSegments(current)).toEqual([true, true, true]);
 
     // Undo task 0 (Cucina) -> 2 remaining -> segments 0 and 1 green, 2 gray
-    const undone0 = uncompleteCleaningTask(task0, [], roommates);
+    const undone0 = uncompleteCleaningTask(task0, roommates);
     current = [undone0, task1, task2];
     expect(getWeeklyProgressBarSegments(current)).toEqual([true, true, false]);
 
     // Undo task 2 (Ingresso) -> 1 remaining -> segment 0 green, 1 and 2 gray
-    const undone2 = uncompleteCleaningTask(task2, [], roommates);
+    const undone2 = uncompleteCleaningTask(task2, roommates);
     current = [undone0, task1, undone2];
     expect(getWeeklyProgressBarSegments(current)).toEqual([true, false, false]);
 
     // Undo task 1 (Bagno) -> 0 remaining -> all gray
-    const undone1 = uncompleteCleaningTask(task1, [], roommates);
+    const undone1 = uncompleteCleaningTask(task1, roommates);
     current = [undone0, undone1, undone2];
     expect(getWeeklyProgressBarSegments(current)).toEqual([false, false, false]);
   });
 });
-
-
-
-

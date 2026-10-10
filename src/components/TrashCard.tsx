@@ -8,7 +8,6 @@ interface TrashCardProps {
   trashQueue: number[];
   roommates: Roommate[];
   myRoommateId: number | null;
-  isAbsentThisWeek: boolean;
   isSubmitting?: boolean;
   onReport: () => void;
   onDecline: (roommateId: number) => void;
@@ -21,7 +20,6 @@ export function TrashCard({
   trashQueue,
   roommates,
   myRoommateId,
-  isAbsentThisWeek,
   isSubmitting = false,
   onReport,
   onDecline,
@@ -36,7 +34,7 @@ export function TrashCard({
   const isAssignedToMe = myRoommateId !== null && openTask?.assignedTo === myRoommateId;
   const isUnassigned = Boolean(openTask && openTask.assignedTo === null);
   const canReport = !openTask && myRoommateId !== null;
-  const canClaim = isUnassigned && myRoommateId !== null && !isAbsentThisWeek;
+  const canClaim = isUnassigned && myRoommateId !== null;
 
   // Prossimo in coda se la spazzatura è chiusa
   const nextInQueueId = trashQueue[0];

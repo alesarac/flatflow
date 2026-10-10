@@ -224,16 +224,15 @@ export function getBaseAssignment(areaId: number, weekIndex: number): number {
 
 /**
  * Trova il sostituto secondo l'ordine fisso dei coinquilini 0 -> 1 -> 2 -> 0,
- * saltando chi è assente o ha già rifiutato la specifica attività.
+ * saltando chi ha già rifiutato la specifica attività.
  */
 export function findSubstitute(
   currentAssignee: number,
-  absentRoommates: number[],
   declinedBy: number[]
 ): number | null {
   for (let step = 1; step <= 2; step++) {
     const candidate = (currentAssignee + step) % 3;
-    if (!absentRoommates.includes(candidate) && !declinedBy.includes(candidate)) {
+    if (!declinedBy.includes(candidate)) {
       return candidate;
     }
   }
@@ -246,7 +245,6 @@ export function findSubstitute(
  */
 export function createWeekCleanings(
   weekKey: string,
-  absentRoommates: number[] = [],
   roommates: Roommate[] = []
 ): CleaningTask[] {
   const weekIndex = getRotationWeekIndex(weekKey);
@@ -254,20 +252,14 @@ export function createWeekCleanings(
 
   for (let areaId = 0; areaId < 3; areaId++) {
     const baseRoommate = getBaseAssignment(areaId, weekIndex);
-    let assignedTo: number | null = baseRoommate;
-
-    if (absentRoommates.includes(baseRoommate)) {
-      assignedTo = findSubstitute(baseRoommate, absentRoommates, []);
-    }
-
-    const assignedRoommate = assignedTo !== null ? roommates.find((r) => r.id === assignedTo) : null;
+    const assignedRoommate = roommates.find((r) => r.id === baseRoommate);
     const assignedToName = assignedRoommate ? assignedRoommate.name : null;
 
     cleanings.push({
       id: `${weekKey}-area-${areaId}`,
       weekKey,
       areaId,
-      assignedTo,
+      assignedTo: baseRoommate,
       assignedToName,
       declinedBy: [],
       isCompleted: false,
@@ -281,12 +273,11 @@ export function createWeekCleanings(
 }
 
 /**
- * Gestisce la rinuncia a una pulizia («Non posso pulire»).
+ * Gestisce la rinuncia a una pulizia («Non posso»).
  * Verifica che chi rinuncia sia l'effettivo assegnatario.
  */
 export function declineCleaningTask(
   task: CleaningTask,
-  absentRoommates: number[],
   decliningRoommateId: number,
   roommates: Roommate[] = []
 ): CleaningTask {
@@ -299,7 +290,7 @@ export function declineCleaningTask(
   }
 
   const updatedDeclined = Array.from(new Set([...task.declinedBy, decliningRoommateId]));
-  const nextAssignee = findSubstitute(decliningRoommateId, absentRoommates, updatedDeclined);
+  const nextAssignee = findSubstitute(decliningRoommateId, updatedDeclined);
   const nextAssigneeObj = nextAssignee !== null ? roommates.find((r) => r.id === nextAssignee) : null;
 
   return {
@@ -317,7 +308,6 @@ export function declineCleaningTask(
  */
 export function claimCleaningTask(
   task: CleaningTask,
-  absentRoommates: number[],
   claimingRoommateId: number,
   roommates: Roommate[] = []
 ): CleaningTask {
@@ -327,10 +317,6 @@ export function claimCleaningTask(
 
   if (task.assignedTo !== null) {
     throw new Error("L'attività ha già un incaricato assegnato.");
-  }
-
-  if (absentRoommates.includes(claimingRoommateId)) {
-    throw new Error("Un coinquilino assente non può prendere in carico l'attività.");
   }
 
   const claimingObj = roommates.find((r) => r.id === claimingRoommateId);
@@ -346,67 +332,13 @@ export function claimCleaningTask(
 }
 
 /**
- * Applica l'assenza settimanale di un coinquilino («Sono assente questa settimana»).
- * Riassegna le attività non completate attualmente assegnate al coinquilino assente.
- */
-export function applyRoommateAbsence(
-  cleanings: CleaningTask[],
-  absentRoommateId: number,
-  allAbsentRoommates: number[],
-  roommates: Roommate[] = []
-): CleaningTask[] {
-  const absentSet = Array.from(new Set([...allAbsentRoommates, absentRoommateId]));
-
-  return cleanings.map((task) => {
-    if (task.isCompleted) return task;
-    if (task.assignedTo === absentRoommateId) {
-      const nextAssignee = findSubstitute(absentRoommateId, absentSet, task.declinedBy);
-      const nextAssigneeObj = nextAssignee !== null ? roommates.find((r) => r.id === nextAssignee) : null;
-      return {
-        ...task,
-        assignedTo: nextAssignee,
-        assignedToName: nextAssigneeObj ? nextAssigneeObj.name : null,
-      };
-    }
-    return task;
-  });
-}
-
-/**
- * Revoca dell'assenza settimanale.
- * Per specifica: le attività già trasferite non cambiano.
- * Se un'attività era senza incaricato (assignedTo === null), il coinquilino che torna può riceverla.
- */
-export function revokeRoommateAbsence(
-  cleanings: CleaningTask[],
-  returningRoommateId: number,
-  remainingAbsentRoommates: number[],
-  roommates: Roommate[] = []
-): CleaningTask[] {
-  const returningObj = roommates.find((r) => r.id === returningRoommateId);
-
-  return cleanings.map((task) => {
-    if (task.isCompleted) return task;
-    if (task.assignedTo === null && !task.declinedBy.includes(returningRoommateId)) {
-      return {
-        ...task,
-        assignedTo: returningRoommateId,
-        assignedToName: returningObj ? returningObj.name : null,
-      };
-    }
-    return task;
-  });
-}
-
-/**
- * Determina l'assegnatario appropriato per una pulizia in base alla rotazione settimanale,
- * alle assenze correnti e alle rinunce registrate.
- * Restituisce null se tutti i coinquilini risultano assenti o hanno rinunciato.
+ * Determina l'assegnatario appropriato per una pulizia in base alla rotazione settimanale
+ * e alle rinunce registrate.
+ * Restituisce null se tutti i coinquilini hanno rinunciato.
  */
 export function determineCleaningAssignee(
   areaId: number,
   weekKey: string,
-  absentRoommates: number[],
   declinedBy: number[],
   roommates: Roommate[] = []
 ): { assignedTo: number | null; assignedToName: string | null } {
@@ -414,8 +346,8 @@ export function determineCleaningAssignee(
   const baseRoommate = getBaseAssignment(areaId, weekIndex);
   let assignedTo: number | null = baseRoommate;
 
-  if (absentRoommates.includes(baseRoommate) || declinedBy.includes(baseRoommate)) {
-    assignedTo = findSubstitute(baseRoommate, absentRoommates, declinedBy);
+  if (declinedBy.includes(baseRoommate)) {
+    assignedTo = findSubstitute(baseRoommate, declinedBy);
   }
 
   const assignedRoommate = assignedTo !== null ? roommates.find((r) => r.id === assignedTo) : null;
@@ -429,27 +361,17 @@ export function determineCleaningAssignee(
  * Annulla il completamento di una pulizia settimanale.
  * Cancella i dati del completamento (isCompleted: false, completedAt: null, completedByName: null, completedBy: null)
  * e conserva l'assegnazione precedente al completamento (senza ricalcolarla automaticamente dalla rotazione originale),
- * preservando le riassegnazioni già avvenute a causa di assenze o rinunce e gestendo le modifiche successive.
+ * preservando le riassegnazioni già avvenute a causa di rinunce e gestendo le modifiche successive.
  */
 export function uncompleteCleaningTask(
   task: CleaningTask,
-  absentRoommates: number[],
   roommates: Roommate[] = []
 ): CleaningTask {
   if (!task.isCompleted) {
     throw new Error("L'attività non risulta completata.");
   }
 
-  let assignedTo = task.assignedTo;
-
-  if (assignedTo !== null) {
-    // Se l'assegnatario precedente è diventato assente successivamente,
-    // trova un valido sostituto tra chi non è assente e non ha rinunciato
-    if (absentRoommates.includes(assignedTo)) {
-      assignedTo = findSubstitute(assignedTo, absentRoommates, task.declinedBy);
-    }
-  }
-
+  const assignedTo = task.assignedTo;
   const assignedRoommate = assignedTo !== null ? roommates.find((r) => r.id === assignedTo) : null;
 
   return {
@@ -472,11 +394,10 @@ export function uncompleteCleaningTask(
  */
 export function findNextTrashAssignee(
   trashQueue: number[],
-  absentRoommates: number[],
   declinedBy: number[] = []
 ): number | null {
   for (const candidate of trashQueue) {
-    if (!absentRoommates.includes(candidate) && !declinedBy.includes(candidate)) {
+    if (!declinedBy.includes(candidate)) {
       return candidate;
     }
   }
@@ -488,14 +409,13 @@ export function findNextTrashAssignee(
  */
 export function reportTrash(
   trashQueue: number[],
-  absentRoommates: number[],
   existingOpenTask: TrashTask | null
 ): TrashTask {
   if (existingOpenTask && existingOpenTask.status === "open") {
     throw new Error("C'è già una segnalazione di spazzatura aperta.");
   }
 
-  const assignedTo = findNextTrashAssignee(trashQueue, absentRoommates, []);
+  const assignedTo = findNextTrashAssignee(trashQueue, []);
 
   return {
     id: `trash-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -516,7 +436,6 @@ export function reportTrash(
 export function declineTrash(
   task: TrashTask,
   trashQueue: number[],
-  absentRoommates: number[],
   decliningRoommateId: number
 ): TrashTask {
   if (task.status !== "open") {
@@ -528,7 +447,7 @@ export function declineTrash(
   }
 
   const updatedDeclined = Array.from(new Set([...task.declinedBy, decliningRoommateId]));
-  const nextAssignee = findNextTrashAssignee(trashQueue, absentRoommates, updatedDeclined);
+  const nextAssignee = findNextTrashAssignee(trashQueue, updatedDeclined);
 
   return {
     ...task,
@@ -544,7 +463,6 @@ export function declineTrash(
  */
 export function claimTrashTask(
   task: TrashTask,
-  absentRoommates: number[],
   claimingRoommateId: number
 ): TrashTask {
   if (task.status !== "open") {
@@ -553,10 +471,6 @@ export function claimTrashTask(
 
   if (task.assignedTo !== null) {
     throw new Error("L'incarico di spazzatura ha già un assegnatario.");
-  }
-
-  if (absentRoommates.includes(claimingRoommateId)) {
-    throw new Error("Un coinquilino assente non può prendere in carico la spazzatura.");
   }
 
   const updatedDeclined = task.declinedBy.filter((id) => id !== claimingRoommateId);
@@ -569,7 +483,7 @@ export function claimTrashTask(
 }
 
 /**
- * Completa la spazzatura («Ho buttato la spazzatura»).
+ * Completa la spazzatura («Ho buttato»).
  * Chi completa passa in fondo alla coda.
  */
 export function completeTrash(
@@ -599,43 +513,6 @@ export function completeTrash(
   const updatedQueue = [...remaining, completingRoommateId];
 
   return { updatedTask, updatedQueue };
-}
-
-/**
- * Riconcilia la spazzatura aperta in caso di variazione di assenze (P1-04).
- * Se l'incaricato attuale è diventato assente, riassegna al prossimo disponibile senza toccare la coda.
- * Se l'incarico era senza incaricato e torna un coinquilino non assente (e che non ha rifiutato), lo assegna.
- */
-export function reconcileOpenTrash(
-  task: TrashTask | null,
-  trashQueue: number[],
-  currentAbsentRoommates: number[]
-): TrashTask | null {
-  if (!task || task.status !== "open") {
-    return task;
-  }
-
-  // Caso 1: l'assegnatario attuale è diventato assente
-  if (task.assignedTo !== null && currentAbsentRoommates.includes(task.assignedTo)) {
-    const next = findNextTrashAssignee(trashQueue, currentAbsentRoommates, task.declinedBy);
-    return {
-      ...task,
-      assignedTo: next,
-    };
-  }
-
-  // Caso 2: l'incarico era senza assegnatario e qualcuno è tornato disponibile
-  if (task.assignedTo === null) {
-    const next = findNextTrashAssignee(trashQueue, currentAbsentRoommates, task.declinedBy);
-    if (next !== null) {
-      return {
-        ...task,
-        assignedTo: next,
-      };
-    }
-  }
-
-  return task;
 }
 
 /**

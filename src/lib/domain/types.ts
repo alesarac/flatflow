@@ -49,7 +49,6 @@ export interface WeekState {
   startDate: string;
   endDate: string;
   label: string;
-  absentRoommates: number[];
   cleanings: CleaningTask[];
 }
 
