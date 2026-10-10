@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import path from "path";
 import fs from "fs";
 import { LocalHouseRepository } from "@/lib/db/local";
@@ -339,5 +339,220 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(openAfter?.assignedTo).toBe(0);
     expect(openAfter?.status).toBe("open");
   });
+
+  it("prevents completed trash from ever being reopened by concurrent reassignment or decline (P1-01)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    // 1. Segnala spazzatura (assegnata a Roommate 0)
+    const reportRes = await trashRoute(
+      new Request("http://localhost/api/house/trash", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ action: "report" }),
+      })
+    );
+    expect(reportRes.status).toBe(200);
+
+    const openTask = await repo.getOpenTrashTask();
+    expect(openTask).toBeDefined();
+    const taskId = openTask!.id;
+
+    // 2. Roommate 0 completa la spazzatura via completamento atomico
+    const completeRes = await trashRoute(
+      new Request("http://localhost/api/house/trash", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ action: "complete", roommateId: 0 }),
+      })
+    );
+    expect(completeRes.status).toBe(200);
+
+    // Ora il compito risulta completato e nessun compito risulta aperto
+    expect(await repo.getOpenTrashTask()).toBeNull();
+
+    // 3. Una richiesta concorrente basata su dati precedenti tenta di rinunciare o riassegnare il compito
+    const declineRes = await trashRoute(
+      new Request("http://localhost/api/house/trash", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ action: "decline", roommateId: 0 }),
+      })
+    );
+    // Non trovando compiti aperti (o tentando un aggiornamento con status = open su un task completato), la richiesta viene respinta
+    expect([404, 409]).toContain(declineRes.status);
+
+    // 4. Tentativo diretto di updateTrashTask condizionale sul task completato deve fallire
+    const staleTask = {
+      id: taskId,
+      status: "open" as const,
+      assignedTo: 1,
+      declinedBy: [0],
+      reportedAt: new Date().toISOString(),
+      completedAt: null,
+      completedByName: null,
+    };
+    const updateSuccess = await repo.updateTrashTask(staleTask, {
+      status: "open",
+      assignedTo: 0,
+    });
+    expect(updateSuccess).toBe(false);
+
+    // 5. Verifica assoluta: nel repository il task DEVE rimanere rigorosamente completato
+    const allTasks = (repo as any).data.trashTasks;
+    const taskInDb = allTasks.find((t: any) => t.id === taskId);
+    expect(taskInDb.status).toBe("completed");
+    expect(taskInDb.completedByName).toBe("Coinquilino 1");
+    expect(await repo.getOpenTrashTask()).toBeNull();
+  });
+
+  it("prevents completing an unassigned cleaning if assigned_to is no longer null (P1-02)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[0];
+
+    // 1. Il task è inizialmente privo di assegnatario (tutti assenti/rinunce)
+    task.assignedTo = null;
+    task.assignedToName = null;
+    await repo.updateCleaningTask(task);
+
+    // 2. Simula race condition concorrente: la route legge il task senza assegnatario (assignedTo: null),
+    // ma prima che chiami updateCleaningTask un'operazione concorrente assegna il compito a Roommate 2
+    const originalGetWeekState = repo.getWeekState.bind(repo);
+    let readCount = 0;
+    const spy = vi.spyOn(repo, "getWeekState").mockImplementation(async (key) => {
+      readCount++;
+      const state = await originalGetWeekState(key);
+      if (readCount === 1) {
+        // Restituisce alla route iniziale un clone con assignedTo: null
+        const clonedCleanings = state.cleanings.map((c) => ({ ...c }));
+        clonedCleanings[0].assignedTo = null;
+        clonedCleanings[0].assignedToName = null;
+
+        // Nel DB, un'operazione concorrente ha appena assegnato il compito a Roommate 2
+        (repo as any).data.cleanings[key][0].assignedTo = 2;
+        (repo as any).data.cleanings[key][0].assignedToName = "Coinquilino 3";
+
+        return { ...state, cleanings: clonedCleanings };
+      }
+      return state;
+    });
+
+
+    // Roommate 1 tenta di completare il compito credendo che sia ancora privo di incaricato
+    // La route verifica condizionalmente { isCompleted: false, assignedTo: null } e riceve 409 Conflict
+    const completeReq = new Request("http://localhost/api/house/cleanings", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: "complete",
+        weekKey: currentWeekKey,
+        taskId: task.id,
+        roommateId: 1,
+      }),
+    });
+
+    const res = await cleaningsRoute(completeReq);
+    expect(res.status).toBe(409);
+    const data = await res.json();
+    expect(data.error).toContain("completata o modificata");
+
+    spy.mockRestore();
+
+    // 3. Verifica diretta su repository: updateCleaningTask con condition assignedTo: null fallisce se è 2
+    const directUpdate = await repo.updateCleaningTask(
+      { ...task, isCompleted: true },
+      { isCompleted: false, assignedTo: null }
+    );
+    expect(directUpdate).toBe(false);
+  });
+
+
+  it("ensures simultaneous absences and declines never assign a cleaning to an absent or declined roommate (P1-02)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[0]; // Area 0 assegnata a Roommate 0
+    expect(task.assignedTo).toBe(0);
+
+    // 1. Roommate 0 rinuncia all'area 0
+    const declineRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: 0,
+        }),
+      })
+    );
+    expect(declineRes.status).toBe(200);
+
+    // L'area 0 viene riassegnata a Roommate 1, con declinedBy: [0]
+    let currentWeek = await repo.getWeekState(currentWeekKey);
+    let area0 = currentWeek.cleanings.find((t) => t.id === task.id)!;
+    expect(area0.assignedTo).toBe(1);
+    expect(area0.declinedBy).toEqual([0]);
+
+    // 2. Simultaneamente, Roommate 1 dichiara assenza per quella settimana
+    const absRes1 = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "set_absence",
+          weekKey: currentWeekKey,
+          roommateId: 1,
+          isAbsent: true,
+        }),
+      })
+    );
+    expect(absRes1.status).toBe(200);
+
+    // L'area 0 deve passare a Roommate 2 (non può tornare a 0 che ha rinunciato, né restare a 1 che è assente)
+    currentWeek = await repo.getWeekState(currentWeekKey);
+    area0 = currentWeek.cleanings.find((t) => t.id === task.id)!;
+    expect(area0.assignedTo).toBe(2);
+    expect(area0.assignedTo).not.toBe(0);
+    expect(area0.assignedTo).not.toBe(1);
+
+    // 3. Anche Roommate 2 dichiara assenza
+    const absRes2 = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "set_absence",
+          weekKey: currentWeekKey,
+          roommateId: 2,
+          isAbsent: true,
+        }),
+      })
+    );
+    expect(absRes2.status).toBe(200);
+
+    // Con tutti e tre non disponibili (0 ha rinunciato, 1 e 2 assenti), l'attività DEVE essere null
+    // e non tornare MAI a una persona assente o che ha rinunciato
+    currentWeek = await repo.getWeekState(currentWeekKey);
+    area0 = currentWeek.cleanings.find((t) => t.id === task.id)!;
+    expect(area0.assignedTo).toBeNull();
+  });
 });
+
 

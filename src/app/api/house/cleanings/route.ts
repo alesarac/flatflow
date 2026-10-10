@@ -81,10 +81,12 @@ export async function POST(req: Request) {
     };
 
     // P1-02: Aggiornamento condizionale atomico: verifica che non sia già completato
+    // e che assigned_to sia ancora esattamente quello verificato (incluso null se era privo di incaricato)
     const updated = await repo.updateCleaningTask(taskToSave, {
       isCompleted: false,
-      ...(task.assignedTo !== null ? { assignedTo: roommateId } : {}),
+      assignedTo: task.assignedTo,
     });
+
 
     if (!updated) {
       return NextResponse.json(

@@ -13,6 +13,7 @@ import {
   applyRoommateAbsence,
   completeTrash,
   createWeekCleanings,
+  findSubstitute,
   formatWeekLabel,
   getRomeSundayEndIso,
   getWeekKey,
@@ -127,53 +128,76 @@ export class LocalHouseRepository implements IHouseRepository {
       if (!currentAbsences.includes(roommateId)) {
         currentAbsences = [...currentAbsences, roommateId];
         this.data.absences[weekKey] = currentAbsences;
-        // Riassegna le pulizie
-        this.data.cleanings[weekKey] = applyRoommateAbsence(
-          weekState.cleanings,
-          roommateId,
-          currentAbsences,
-          this.data.roommates
-        );
+      }
 
-        // P1-04: Riconcilia la spazzatura aperta se assegnata al nuovo assente
-        const openTrash = await this.getOpenTrashTask();
-        if (openTrash && openTrash.assignedTo === roommateId) {
-          const reconciled = reconcileOpenTrash(
-            openTrash,
-            this.data.trashQueue,
-            currentAbsences
-          );
-          if (reconciled) {
-            await this.updateTrashTask(reconciled);
-          }
+      // Riassegna le pulizie non completate per tutti i coinquilini attualmente assenti
+      const currentCleanings = this.data.cleanings[weekKey] || weekState.cleanings;
+      for (let i = 0; i < currentCleanings.length; i++) {
+        const task = currentCleanings[i];
+        if (!task.isCompleted && task.assignedTo !== null && currentAbsences.includes(task.assignedTo)) {
+          const next = findSubstitute(task.assignedTo, currentAbsences, task.declinedBy);
+          const nextRoommate = next !== null ? this.data.roommates.find((r) => r.id === next) : null;
+          currentCleanings[i] = {
+            ...task,
+            assignedTo: next,
+            assignedToName: nextRoommate ? nextRoommate.name : null,
+          };
+        }
+      }
+      this.data.cleanings[weekKey] = currentCleanings;
+
+      // P1-04 & P1-01: Riconcilia la spazzatura aperta in modo condizionale
+      const openTrash = await this.getOpenTrashTask();
+      if (openTrash && openTrash.status === "open" && openTrash.assignedTo !== null && currentAbsences.includes(openTrash.assignedTo)) {
+        const prevAssignee = openTrash.assignedTo;
+        const reconciled = reconcileOpenTrash(
+          openTrash,
+          this.data.trashQueue,
+          currentAbsences
+        );
+        if (reconciled && reconciled.assignedTo !== prevAssignee) {
+          await this.updateTrashTask(reconciled, {
+            status: "open",
+            assignedTo: prevAssignee,
+          });
         }
       }
     } else {
       if (currentAbsences.includes(roommateId)) {
         currentAbsences = currentAbsences.filter((id) => id !== roommateId);
         this.data.absences[weekKey] = currentAbsences;
-        // Revoca assenza pulizie
-        this.data.cleanings[weekKey] = revokeRoommateAbsence(
-          weekState.cleanings,
-          roommateId,
-          currentAbsences,
-          this.data.roommates
-        );
+      }
+      const currentCleanings = this.data.cleanings[weekKey] || weekState.cleanings;
+      const returningRoommate = this.data.roommates.find((r) => r.id === roommateId);
+      for (let i = 0; i < currentCleanings.length; i++) {
+        const task = currentCleanings[i];
+        if (!task.isCompleted && task.assignedTo === null && !task.declinedBy.includes(roommateId)) {
+          currentCleanings[i] = {
+            ...task,
+            assignedTo: roommateId,
+            assignedToName: returningRoommate ? returningRoommate.name : null,
+          };
+        }
+      }
+      this.data.cleanings[weekKey] = currentCleanings;
 
-        // P1-04: Riconcilia la spazzatura aperta se era senza incaricato
-        const openTrash = await this.getOpenTrashTask();
-        if (openTrash && openTrash.assignedTo === null) {
-          const reconciled = reconcileOpenTrash(
-            openTrash,
-            this.data.trashQueue,
-            currentAbsences
-          );
-          if (reconciled) {
-            await this.updateTrashTask(reconciled);
-          }
+      // P1-04 & P1-01: Riconcilia la spazzatura aperta se era senza incaricato
+      const openTrash = await this.getOpenTrashTask();
+      if (openTrash && openTrash.status === "open" && openTrash.assignedTo === null) {
+        const reconciled = reconcileOpenTrash(
+          openTrash,
+          this.data.trashQueue,
+          currentAbsences
+        );
+        if (reconciled && reconciled.assignedTo !== null) {
+          await this.updateTrashTask(reconciled, {
+            status: "open",
+            assignedTo: null,
+          });
         }
       }
     }
+
 
     this.saveData();
     return this.getWeekState(weekKey);
@@ -218,13 +242,35 @@ export class LocalHouseRepository implements IHouseRepository {
     this.saveData();
   }
 
-  async updateTrashTask(task: TrashTask): Promise<void> {
+  async updateTrashTask(
+    task: TrashTask,
+    condition?: { status?: "open" | "completed"; assignedTo?: number | null }
+  ): Promise<boolean> {
     const idx = this.data.trashTasks.findIndex((t) => t.id === task.id);
-    if (idx !== -1) {
-      this.data.trashTasks[idx] = task;
-      this.saveData();
+    if (idx === -1) return false;
+
+    const current = this.data.trashTasks[idx];
+    const targetStatus = condition?.status ?? "open";
+    if (current.status !== targetStatus) {
+      return false;
     }
+
+    if (condition && condition.assignedTo !== undefined) {
+      if (current.assignedTo !== condition.assignedTo) {
+        return false;
+      }
+    }
+
+    // P1-01: Aggiorna solo i campi necessari (assignedTo, declinedBy), senza sovrascrivere lo stato di completamento
+    this.data.trashTasks[idx] = {
+      ...current,
+      assignedTo: task.assignedTo,
+      declinedBy: task.declinedBy,
+    };
+    this.saveData();
+    return true;
   }
+
 
   async completeTrashAtomic(
     taskId: string,

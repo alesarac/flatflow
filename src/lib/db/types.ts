@@ -22,7 +22,10 @@ export interface IHouseRepository {
 
   getOpenTrashTask(): Promise<TrashTask | null>;
   createTrashTask(task: TrashTask): Promise<void>;
-  updateTrashTask(task: TrashTask): Promise<void>;
+  updateTrashTask(
+    task: TrashTask,
+    condition?: { status?: "open" | "completed"; assignedTo?: number | null }
+  ): Promise<boolean>;
   completeTrashAtomic(taskId: string, roommateId: number, roommateName: string): Promise<{ task: TrashTask; queue: number[] }>;
 
   getHistory(limit?: number, offset?: number): Promise<HistoryResult>;

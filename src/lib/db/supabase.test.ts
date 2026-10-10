@@ -68,3 +68,64 @@ describe("SupabaseHouseRepository Atomic Trash Completion (P1-01)", () => {
     expect(result.queue).toEqual([1, 2, 0]);
   });
 });
+
+describe("SupabaseHouseRepository Conditional Trash Updates (P1-01)", () => {
+  it("only updates assigned_to and declined_by, enforces status 'open', and rejects completed tasks", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    let updatedPayload: any = null;
+    const eqCalls: [string, any][] = [];
+
+    const mockQuery: any = {
+      update: vi.fn((payload) => {
+        updatedPayload = payload;
+        return mockQuery;
+      }),
+      eq: vi.fn((col, val) => {
+        eqCalls.push([col, val]);
+        return mockQuery;
+      }),
+      select: vi.fn().mockResolvedValue({
+        data: [], // 0 righe aggiornate (task già completato concorrentemente)
+        error: null,
+      }),
+    };
+
+    const mockFrom = vi.fn().mockReturnValue(mockQuery);
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: mockFrom,
+    };
+
+    const result = await repo.updateTrashTask(
+      {
+        id: "trash-1",
+        status: "open",
+        assignedTo: 1,
+        declinedBy: [0],
+        reportedAt: "2026-10-10T00:00:00Z",
+        completedAt: null,
+        completedByName: null,
+      },
+      { status: "open", assignedTo: 0 }
+    );
+
+    // 1. Risultato deve essere false perché nessuna riga è stata aggiornata
+    expect(result).toBe(false);
+
+    // 2. Il payload di update NON deve contenere status, completed_at o completed_by_name!
+    expect(updatedPayload).toEqual({
+      assigned_to: 1,
+      declined_by: [0],
+    });
+    expect(updatedPayload.status).toBeUndefined();
+    expect(updatedPayload.completed_at).toBeUndefined();
+
+    // 3. La query deve filtrare rigorosamente su status = 'open' e assigned_to = 0
+    expect(eqCalls).toContainEqual(["id", "trash-1"]);
+    expect(eqCalls).toContainEqual(["status", "open"]);
+    expect(eqCalls).toContainEqual(["assigned_to", 0]);
+  });
+});
+

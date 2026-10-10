@@ -29,12 +29,21 @@ export async function POST(req: Request) {
 
   let openTask = rawOpenTask;
   if (openTask && openTask.status === "open") {
+    const previousAssignee = openTask.assignedTo;
     const reconciled = reconcileOpenTrash(openTask, queue, currentWeek.absentRoommates);
-    if (reconciled && reconciled.assignedTo !== openTask.assignedTo) {
-      await repo.updateTrashTask(reconciled);
-      openTask = reconciled;
+    if (reconciled && reconciled.assignedTo !== previousAssignee) {
+      const updated = await repo.updateTrashTask(reconciled, {
+        status: "open",
+        assignedTo: previousAssignee,
+      });
+      if (updated) {
+        openTask = reconciled;
+      } else {
+        openTask = await repo.getOpenTrashTask();
+      }
     }
   }
+
 
 
   if (action === "report") {
@@ -73,9 +82,21 @@ export async function POST(req: Request) {
     }
 
     const updatedTask = declineTrash(openTask, queue, currentWeek.absentRoommates, roommateId);
-    await repo.updateTrashTask(updatedTask);
+    const updated = await repo.updateTrashTask(updatedTask, {
+      status: "open",
+      assignedTo: roommateId,
+    });
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "L'incarico di spazzatura è già stato completato o modificato da un'altra operazione." },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json({ success: true, openTrashTask: updatedTask, trashQueue: queue });
   }
+
 
   if (action === "complete") {
     if (!openTask) {
@@ -139,10 +160,22 @@ export async function POST(req: Request) {
       );
     }
 
-    openTask.assignedTo = roommateId;
-    await repo.updateTrashTask(openTask);
-    return NextResponse.json({ success: true, openTrashTask: openTask, trashQueue: queue });
+    const taskToClaim = { ...openTask, assignedTo: roommateId };
+    const updated = await repo.updateTrashTask(taskToClaim, {
+      status: "open",
+      assignedTo: null,
+    });
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "L'incarico di spazzatura è già stato completato o assegnato ad un altro coinquilino." },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({ success: true, openTrashTask: taskToClaim, trashQueue: queue });
   }
+
 
   return NextResponse.json({ error: "Azione non riconosciuta" }, { status: 400 });
 }

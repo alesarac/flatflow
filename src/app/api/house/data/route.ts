@@ -20,18 +20,29 @@ export async function GET(req: Request) {
   ]);
 
   let openTrashTask = initialTrash;
-  // P1-03: Riconcilia la segnalazione aperta con le disponibilità della nuova settimana
+  // P1-03 & P1-01: Riconcilia la segnalazione aperta con le disponibilità della nuova settimana
   if (openTrashTask && openTrashTask.status === "open") {
+    const previousAssignee = openTrashTask.assignedTo;
     const reconciled = reconcileOpenTrash(
       openTrashTask,
       trashQueue,
       currentWeek.absentRoommates
     );
-    if (reconciled && reconciled.assignedTo !== openTrashTask.assignedTo) {
-      await repo.updateTrashTask(reconciled);
-      openTrashTask = reconciled;
+    if (reconciled && reconciled.assignedTo !== previousAssignee) {
+      const updated = await repo.updateTrashTask(reconciled, {
+        status: "open",
+        assignedTo: previousAssignee,
+      });
+      if (updated) {
+        openTrashTask = reconciled;
+      } else {
+        // Se la riassegnazione condizionale non è andata a buon fine (es. compito completato nel frattempo),
+        // rileggi lo stato attuale per non restituire dati obsoleti o riaperti
+        openTrashTask = await repo.getOpenTrashTask();
+      }
     }
   }
+
 
   return NextResponse.json({
     roommates,
