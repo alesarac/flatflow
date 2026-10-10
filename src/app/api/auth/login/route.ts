@@ -6,8 +6,21 @@ import {
   getExpectedHouseCode,
   SESSION_COOKIE_NAME,
 } from "@/lib/auth/session";
+import { getRequestSession } from "@/lib/auth/server";
 
 export async function POST(req: Request) {
+  // Se esiste già una sessione valida, rifiuta con HTTP 409 richiedendo il logout preventivo
+  const existingSession = await getRequestSession(req);
+  if (existingSession) {
+    return NextResponse.json(
+      {
+        error:
+          "Una sessione è già attiva su questo dispositivo. Effettua prima il logout per accedere con un altro profilo.",
+      },
+      { status: 409 }
+    );
+  }
+
   const repo = getRepository();
   const ip = getClientIp(req);
 

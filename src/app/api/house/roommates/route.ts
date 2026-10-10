@@ -29,9 +29,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Nome non valido" }, { status: 400 });
   }
 
+  const trimmedName = name.trim();
+  if (trimmedName.length > 30) {
+    return NextResponse.json(
+      { error: "Il nome del coinquilino non può superare i 30 caratteri." },
+      { status: 400 }
+    );
+  }
+
   const targetId = session.roommateId;
   const repo = getRepository();
-  await repo.updateRoommate(targetId, name.trim());
+  await repo.updateRoommate(targetId, trimmedName);
   const roommates = await repo.getRoommates();
 
   return NextResponse.json({ success: true, roommates });

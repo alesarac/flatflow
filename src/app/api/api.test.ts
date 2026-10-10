@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { LocalHouseRepository } from "@/lib/db/local";
 import { setTestRepository } from "@/lib/db";
 import { POST as loginRoute } from "./auth/login/route";
+import { POST as logoutRoute } from "./auth/logout/route";
 import { GET as checkRoute } from "./auth/check/route";
 import { GET as authRoommatesRoute } from "./auth/roommates/route";
 import { GET as houseDataRoute } from "./house/data/route";
@@ -910,7 +911,35 @@ describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
     expect(data.roommates[2]).toEqual({ id: 2, name: "Coinquilino 3" });
   });
 
-  it("richiede sia il codice casa sia il roommateId al login e salva il profilo nella sessione", async () => {
+  it("consente il login iniziale valido per ciascuno dei tre ID (0, 1, 2) salvando il profilo in sessione", async () => {
+    for (const id of [0, 1, 2]) {
+      const req = new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: "segreto123", roommateId: id }),
+      });
+      const res = await loginRoute(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.roommateId).toBe(id);
+      expect(data.name).toBe(`Coinquilino ${id + 1}`);
+
+      const cookieVal = res.cookies.get(SESSION_COOKIE_NAME)?.value;
+      expect(cookieVal).toBeDefined();
+
+      // Verifica GET /api/auth/check
+      const checkRes = await checkRoute(
+        new Request("http://localhost/api/auth/check", {
+          headers: { Cookie: `${SESSION_COOKIE_NAME}=${cookieVal}` },
+        })
+      );
+      const checkData = await checkRes.json();
+      expect(checkData.authenticated).toBe(true);
+      expect(checkData.roommateId).toBe(id);
+    }
+  });
+
+  it("richiede sia il codice casa sia il roommateId valido al login", async () => {
     // Mancanza di roommateId
     const reqNoProfile = new Request("http://localhost/api/auth/login", {
       method: "POST",
@@ -928,43 +957,64 @@ describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
     });
     const resInvalidProfile = await loginRoute(reqInvalidProfile);
     expect(resInvalidProfile.status).toBe(400);
-
-    // Login valido con coinquilino 2
-    const reqValid = new Request("http://localhost/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: "segreto123", roommateId: 2 }),
-    });
-    const resValid = await loginRoute(reqValid);
-    expect(resValid.status).toBe(200);
-    const dataValid = await resValid.json();
-    expect(dataValid.roommateId).toBe(2);
-    expect(dataValid.name).toBe("Coinquilino 3");
-
-    const cookie = resValid.cookies.get(SESSION_COOKIE_NAME);
-    expect(cookie?.value).toBeDefined();
-
-    // Verifica con GET /api/auth/check
-    const checkReq = new Request("http://localhost/api/auth/check", {
-      headers: { Cookie: `${SESSION_COOKIE_NAME}=${cookie!.value}` },
-    });
-    const checkRes = await checkRoute(checkReq);
-    expect(checkRes.status).toBe(200);
-    const checkData = await checkRes.json();
-    expect(checkData.authenticated).toBe(true);
-    expect(checkData.roommateId).toBe(2);
-
-    // Verifica con GET /api/house/data
-    const dataReq = new Request("http://localhost/api/house/data", {
-      headers: { Cookie: `${SESSION_COOKIE_NAME}=${cookie!.value}` },
-    });
-    const dataRes = await houseDataRoute(dataReq);
-    expect(dataRes.status).toBe(200);
-    const houseData = await dataRes.json();
-    expect(houseData.myRoommateId).toBe(2);
   });
 
-  it("invalida rigorosamente le vecchie sessioni prive di roommateId richiedendo nuovo accesso (401)", async () => {
+  it("rifiuta con HTTP 409 un secondo login se esiste già una sessione attiva valida", async () => {
+    // 1. Primo login valido come Coinquilino 0
+    const loginReq = new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "segreto123", roommateId: 0 }),
+    });
+    const loginRes = await loginRoute(loginReq);
+    expect(loginRes.status).toBe(200);
+    const validCookie = loginRes.cookies.get(SESSION_COOKIE_NAME)!.value;
+
+    // 2. Tentativo di secondo login inviando il cookie di sessione attivo (anche con ID diverso) -> 409 Conflict
+    const secondLoginReq = new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: `${SESSION_COOKIE_NAME}=${validCookie}`,
+      },
+      body: JSON.stringify({ code: "segreto123", roommateId: 1 }),
+    });
+    const secondLoginRes = await loginRoute(secondLoginReq);
+    expect(secondLoginRes.status).toBe(409);
+    const secondLoginData = await secondLoginRes.json();
+    expect(secondLoginData.error).toContain("logout");
+  });
+
+  it("consente il logout e il successivo login con un altro profilo", async () => {
+    // 1. Login iniziale come Coinquilino 0
+    const login0 = await loginRoute(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: "segreto123", roommateId: 0 }),
+      })
+    );
+    expect(login0.status).toBe(200);
+
+    // 2. Esecuzione logout
+    const logoutRes = await logoutRoute();
+    expect(logoutRes.status).toBe(200);
+
+    // 3. Nuovo login senza cookie o dopo logout come Coinquilino 2 -> 200 OK
+    const login2 = await loginRoute(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: "segreto123", roommateId: 2 }),
+      })
+    );
+    expect(login2.status).toBe(200);
+    const data2 = await login2.json();
+    expect(data2.roommateId).toBe(2);
+    expect(data2.name).toBe("Coinquilino 3");
+  });
+
+  it("invalida le vecchie sessioni prive di roommateId ma non impedisce un nuovo accesso", async () => {
     // Genera un vecchio token valido per HMAC ma privo del campo roommateId
     const oldPayload = {
       houseId: "default",
@@ -981,19 +1031,17 @@ describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
       Cookie: `${SESSION_COOKIE_NAME}=${legacyToken}`,
     };
 
-    // 1. checkRoute indica non autenticato
+    // 1. Le API protette restituiscono 401
     const checkRes = await checkRoute(
       new Request("http://localhost/api/auth/check", { headers: legacyHeaders })
     );
     expect((await checkRes.json()).authenticated).toBe(false);
 
-    // 2. houseDataRoute restituisce 401
     const dataRes = await houseDataRoute(
       new Request("http://localhost/api/house/data", { headers: legacyHeaders })
     );
     expect(dataRes.status).toBe(401);
 
-    // 3. cleaningsRoute restituisce 401
     const cleaningsRes = await cleaningsRoute(
       new Request("http://localhost/api/house/cleanings", {
         method: "POST",
@@ -1003,7 +1051,6 @@ describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
     );
     expect(cleaningsRes.status).toBe(401);
 
-    // 4. trashRoute restituisce 401
     const trashRes = await trashRoute(
       new Request("http://localhost/api/house/trash", {
         method: "POST",
@@ -1013,7 +1060,6 @@ describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
     );
     expect(trashRes.status).toBe(401);
 
-    // 5. roommatesRoute restituisce 401
     const roommatesRes = await roommatesRoute(
       new Request("http://localhost/api/house/roommates", {
         method: "POST",
@@ -1023,11 +1069,25 @@ describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
     );
     expect(roommatesRes.status).toBe(401);
 
-    // 6. historyRoute restituisce 401
     const historyRes = await historyRoute(
       new Request("http://localhost/api/house/history", { headers: legacyHeaders })
     );
     expect(historyRes.status).toBe(401);
+
+    // 2. Un nuovo login NON viene bloccato da 409 anche se la richiesta presenta il vecchio token
+    const loginWithLegacy = await loginRoute(
+      new Request("http://localhost/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${legacyToken}`,
+        },
+        body: JSON.stringify({ code: "segreto123", roommateId: 1 }),
+      })
+    );
+    expect(loginWithLegacy.status).toBe(200);
+    const newSessionData = await loginWithLegacy.json();
+    expect(newSessionData.roommateId).toBe(1);
   });
 
   it("rifiuta con 403 Forbidden tentativi di impersonificazione o modifica di altri coinquilini", async () => {
@@ -1095,6 +1155,40 @@ describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
     expect(mismatchedTrashRes.status).toBe(403);
     const trashErr = await mismatchedTrashRes.json();
     expect(trashErr.error).toContain("Non puoi eseguire azioni per conto di un altro coinquilino");
+  });
+
+  it("applica anche lato server il limite di 30 caratteri per il nome del coinquilino", async () => {
+    const token0 = createSessionToken(0);
+    const authHeaders0 = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token0}`,
+    };
+
+    // 31 caratteri -> 400 Bad Request
+    const longName = "A".repeat(31);
+    const resTooLong = await roommatesRoute(
+      new Request("http://localhost/api/house/roommates", {
+        method: "POST",
+        headers: authHeaders0,
+        body: JSON.stringify({ id: 0, name: longName }),
+      })
+    );
+    expect(resTooLong.status).toBe(400);
+    const errData = await resTooLong.json();
+    expect(errData.error).toContain("30 caratteri");
+
+    // 30 caratteri esatti -> 200 OK
+    const valid30Name = "A".repeat(30);
+    const resValid30 = await roommatesRoute(
+      new Request("http://localhost/api/house/roommates", {
+        method: "POST",
+        headers: authHeaders0,
+        body: JSON.stringify({ id: 0, name: valid30Name }),
+      })
+    );
+    expect(resValid30.status).toBe(200);
+    const updated = (await resValid30.json()).roommates;
+    expect(updated.find((r: any) => r.id === 0).name).toBe(valid30Name);
   });
 });
 
