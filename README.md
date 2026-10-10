@@ -18,21 +18,25 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
 - Ciascun coinquilino può premere **«Ho pulito»** per registrare il completamento.
 - Nessun recupero o penalità per le attività non svolte entro domenica: rimangono semplicemente registrate come incomplete nello storico e la settimana successiva prosegue regolarmente con la nuova rotazione.
 
-### ✈️ Assenze e impossibilità di pulire
+### 🔄 Rinunce e presa in carico («Non posso» e «Me ne occupo io»)
 
-- **«Sono assente questa settimana»**: il coinquilino non riceve incarichi per quella settimana.
-- **«Non posso pulire»**: rinuncia a una specifica pulizia.
-- Il sistema riassegna automaticamente il compito al primo coinquilino disponibile seguendo l'ordine fisso (0 → 1 → 2 → 0), saltando gli assenti e chi ha già rifiutato quell'attività. Se nessuno è disponibile, l'attività rimane senza incaricato.
-- La revoca di un'assenza prima della fine della settimana non modifica le assegnazioni già trasferite.
+- Tutti i coinquilini sono **sempre potenzialmente disponibili** (non è presente una gestione globale di presenza/assenza settimanale).
+- **«Non posso»**: consente a chi è attualmente assegnato a un compito di rinunciare a quella specifica attività.
+- Alla rinuncia, il compito passa automaticamente al coinquilino successivo secondo la rotazione ciclica (0 → 1 → 2 → 0) che non abbia già rifiutato quella stessa attività.
+- **«Da coprire»**: se tutti i coinquilini rinunciano a un compito, l'attività rimane visibile nello stato «Da coprire».
+- **«Me ne occupo io»**: chiunque può offrirsi volontario per un'attività senza incaricato («Da coprire»), anche se vi aveva precedentemente rinunciato.
+- Chi si offre volontario viene assegnato come incaricato, ma l'attività **non risulta completata** finché non viene effettivamente registrata con **«Ho pulito»** o **«Ho buttato»**.
+- Le rinunce hanno effetto **esclusivamente sulla specifica attività** e non influiscono sugli altri compiti della settimana né sulla rotazione generale.
 
 ### 🗑️ Gestione equa della spazzatura
 
 - Chiunque può premere **«Segnala spazzatura piena»** (può esserci una sola segnalazione aperta alla volta).
 - Assegnazione automatica tramite una **coda equa a 3 posizioni**:
   - Il primo disponibile in coda riceve il compito.
-  - Può premere **«Ho buttato la spazzatura»** (completando il compito) oppure **«Non posso»**.
+  - Può premere **«Ho buttato»** (completando il compito) oppure **«Non posso»**.
   - **Chi completa passa in fondo alla coda**.
-  - **Chi rinuncia o è assente viene saltato solo per quella volta e mantiene la priorità in testa alla coda** per la segnalazione successiva.
+  - **Chi rinuncia viene saltato solo per quella volta e mantiene la priorità in testa alla coda** per la segnalazione successiva.
+  - Se tutti i coinquilini rinunciano, compare lo stato **«Da coprire»** e chiunque può prenderla in carico premendo **«Me ne occupo io»**.
   - Un incarico di spazzatura aperto non scade al cambio di settimana.
 
 ### 📜 Storico essenziale

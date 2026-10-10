@@ -1159,7 +1159,7 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     );
     expect(histRes.status).toBe(200);
     const histData = await histRes.json();
-    const matchingCleaning = histData.items.find((item: any) => item.id === task.id);
+    const matchingCleaning = histData.items.find((item: any) => item.id === `clean-${task.id}`);
     expect(matchingCleaning).toBeUndefined();
   });
 

@@ -206,15 +206,17 @@ Per utilizzare l'app a schermo intero senza barre di navigazione del browser:
 ### Flusso delle Attività:
 
 - **Rotazione settimanale (Lunedì fuso orario italiano Europe/Rome):** Le pulizie delle tre aree (*Cucina*, *Bagno*, *Ingresso e corridoio*) ruotano automaticamente ogni lunedì a mezzanotte.
-- **Durante la settimana:**
+- **Durante la settimana per le pulizie:**
   - Dopo aver fatto la pulizia, apri l'app e premi **«Ho pulito»**.
-  - Se non puoi farla, premi **«Non posso pulire»**: il sistema riassegna il compito al coinquilino successivo disponibile (seguendo la rotazione ciclica 0 → 1 → 2 → 0).
-  - Se sei assente per l'intera settimana, attiva **«Sono assente questa settimana»**: non riceverai compiti e le attività verranno distribuite tra i coinquilini presenti.
+  - Se non puoi farla, premi **«Non posso»**: il sistema riassegna automaticamente il compito al coinquilino successivo disponibile (seguendo la rotazione ciclica 0 → 1 → 2 → 0) che non abbia già rifiutato quell'attività.
+  - Se tutti e tre i coinquilini rinunciano, l'attività passa allo stato **«Da coprire»**: chiunque può cambiare idea e offrirsi volontario premendo **«Me ne occupo io»**. Il compito viene riassegnato a chi si offre e risulterà completato solo premendo successivamente **«Ho pulito»**.
+  - La rinuncia vale esclusivamente per quella specifica attività, senza alterare la disponibilità per gli altri compiti o per la settimana successiva.
 - **Spazzatura:**
   - Quando il bidone è pieno, premi **«Segnala spazzatura piena»**.
   - Il sistema assegna il turno al coinquilino in testa alla coda equa a 3 posizioni.
-  - Chi la getta preme **«Ho buttato la spazzatura»** e passa in fondo alla coda.
-  - Chi rinuncia preme **«Non posso»**: viene saltato per questa volta ma mantiene la priorità per il prossimo turno.
+  - Chi la getta preme **«Ho buttato»** e passa in fondo alla coda.
+  - Chi non può preme **«Non posso»**: il turno passa al coinquilino successivo in coda, e chi ha rinunciato mantiene la priorità in testa alla coda per la prossima segnalazione.
+  - Se tutti rinunciano, compare lo stato **«Da coprire»** e chiunque può prenderla in carico premendo **«Me ne occupo io»** prima di registrarla con **«Ho buttato»**.
 - **Modifica dei nomi dei coinquilini:**
   - Dalle **Impostazioni**, è possibile personalizzare i nomi dei coinquilini in qualsiasi momento. Lo storico delle pulizie già effettuate preserverà i nomi storici originali.
 
@@ -228,7 +230,6 @@ Durante la fase di test potresti voler ripulire il database e riportare Flatflow
 
 - **Cosa viene eliminato:**
   - Tutte le pulizie registrate (completate e incomplete).
-  - Tutte le assenze settimanali registrate.
   - Tutte le segnalazioni aperte e lo storico della spazzatura.
   - I tentativi di accesso registrati (reset del rate limiting).
 - **Cosa viene conservato:**
