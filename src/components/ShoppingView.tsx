@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ShoppingItem, Roommate } from "../lib/domain/types";
 import { formatTimeAgo } from "../lib/domain/logic";
+import { ShoppingSyncController } from "../lib/domain/shoppingSync";
 import {
   Plus,
   Trash2,
@@ -32,11 +33,27 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
   const [toBuyExpanded, setToBuyExpanded] = useState(true);
   const [boughtExpanded, setBoughtExpanded] = useState(true);
 
-  // Tracciamento di sequenza e serializzazione mutazioni per evitare sovrascritture asincrone fuori ordine
-  const latestVersionRef = useRef(0);
-  const activeMutationsCountRef = useRef(0);
-  const pendingItemIdsRef = useRef<Set<string>>(new Set());
-  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const controllerRef = useRef<ShoppingSyncController | null>(null);
+  if (!controllerRef.current) {
+    controllerRef.current = new ShoppingSyncController({
+      onItemsChange: setItems,
+      onError: setError,
+      onPendingItemIdsChange: setPendingItemIds,
+      onLoadingChange: setLoading,
+      onRefreshingChange: setIsRefreshing,
+    });
+  }
+
+  // Aggiorna sempre i callback del controller con i setter React attuali
+  useEffect(() => {
+    controllerRef.current?.setCallbacks({
+      onItemsChange: setItems,
+      onError: setError,
+      onPendingItemIdsChange: setPendingItemIds,
+      onLoadingChange: setLoading,
+      onRefreshingChange: setIsRefreshing,
+    });
+  });
 
   const currentRoommate = roommates?.find((r) => r.id === myRoommateId);
   const currentRoommateName =
@@ -45,33 +62,8 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
       ? `Coinquilino ${myRoommateId + 1}`
       : "Coinquilino");
 
-  const fetchItems = useCallback(async (isManual = false) => {
-    if (isManual) setIsRefreshing(true);
-    const reqVersion = ++latestVersionRef.current;
-
-    try {
-      const res = await fetch("/api/house/shopping", { cache: "no-store" });
-      if (!res.ok) {
-        throw new Error("Impossibile caricare la lista della spesa.");
-      }
-      const data = await res.json();
-
-      // Scarta la risposta se nel frattempo è partita una richiesta più recente o se ci sono mutazioni locali attive
-      if (reqVersion < latestVersionRef.current) return;
-      if (activeMutationsCountRef.current > 0) return;
-
-      setItems(data.items || []);
-      setError(null);
-    } catch (err: any) {
-      if (reqVersion >= latestVersionRef.current) {
-        setError(err.message || "Errore di connessione.");
-      }
-    } finally {
-      if (reqVersion >= latestVersionRef.current) {
-        setLoading(false);
-        setIsRefreshing(false);
-      }
-    }
+  const fetchItems = useCallback((isManual = false) => {
+    controllerRef.current?.fetchItems(isManual);
   }, []);
 
   // Caricamento iniziale e refresh al ritorno sull'app (focus / visibilitychange)
@@ -103,148 +95,20 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
     if (!trimmed || isAdding) return;
 
     setIsAdding(true);
-    setError(null);
-    activeMutationsCountRef.current++;
-    const addVersion = ++latestVersionRef.current;
-
-    mutationQueueRef.current = mutationQueueRef.current.then(async () => {
-      try {
-        const res = await fetch("/api/house/shopping", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "add", name: trimmed }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || "Errore durante l'aggiunta.");
-        }
-
-        setNewItemName("");
-        if (addVersion >= latestVersionRef.current && activeMutationsCountRef.current === 1) {
-          setItems(data.items || []);
-        } else if (data.item) {
-          setItems((prev) => [data.item, ...prev.filter((i) => i.id !== data.item.id)]);
-        }
-      } catch (err: any) {
-        setError(err.message);
-        fetchItems(false);
-      } finally {
-        activeMutationsCountRef.current = Math.max(0, activeMutationsCountRef.current - 1);
-        setIsAdding(false);
-      }
-    });
+    setNewItemName("");
+    const ok = await controllerRef.current?.addItem(trimmed);
+    if (!ok) {
+      setNewItemName(trimmed);
+    }
+    setIsAdding(false);
   };
 
   const handleToggle = (id: string, isBought: boolean) => {
-    if (pendingItemIdsRef.current.has(id)) return;
-
-    // Aggiungi a pending per evitare doppi click sullo stesso prodotto
-    pendingItemIdsRef.current.add(id);
-    setPendingItemIds(new Set(pendingItemIdsRef.current));
-    setError(null);
-
-    // Aggiornamento ottimistico immediato
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              isBought,
-              boughtAt: isBought ? new Date().toISOString() : null,
-              boughtBy: isBought ? (myRoommateId ?? item.boughtBy) : null,
-              boughtByName: isBought ? (currentRoommateName || item.boughtByName) : null,
-            }
-          : item
-      )
-    );
-
-    activeMutationsCountRef.current++;
-    const toggleVersion = ++latestVersionRef.current;
-
-    mutationQueueRef.current = mutationQueueRef.current.then(async () => {
-      try {
-        const res = await fetch("/api/house/shopping", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "toggle", id, isBought }),
-        });
-
-        const data = await res.json();
-        if (res.status === 404) {
-          // Prodotto eliminato concorrentemente da un altro coinquilino
-          setItems((prev) => prev.filter((item) => item.id !== id));
-          setError("Questo prodotto non è più presente nella lista.");
-          fetchItems(false);
-          return;
-        }
-
-        if (!res.ok) {
-          throw new Error(data.error || "Errore durante l'aggiornamento.");
-        }
-
-        if (toggleVersion >= latestVersionRef.current && activeMutationsCountRef.current === 1) {
-          setItems(data.items || []);
-        } else if (data.item) {
-          setItems((prev) =>
-            prev.map((item) => (item.id === data.item.id ? data.item : item))
-          );
-        }
-      } catch (err: any) {
-        setError(err.message);
-        fetchItems(false);
-      } finally {
-        activeMutationsCountRef.current = Math.max(0, activeMutationsCountRef.current - 1);
-        pendingItemIdsRef.current.delete(id);
-        setPendingItemIds(new Set(pendingItemIdsRef.current));
-      }
-    });
+    controllerRef.current?.toggleItem(id, isBought, myRoommateId, currentRoommateName);
   };
 
   const handleDelete = (id: string) => {
-    if (pendingItemIdsRef.current.has(id)) return;
-
-    pendingItemIdsRef.current.add(id);
-    setPendingItemIds(new Set(pendingItemIdsRef.current));
-    setError(null);
-
-    // Aggiornamento ottimistico immediato
-    setItems((prev) => prev.filter((item) => item.id !== id));
-
-    activeMutationsCountRef.current++;
-    const deleteVersion = ++latestVersionRef.current;
-
-    mutationQueueRef.current = mutationQueueRef.current.then(async () => {
-      try {
-        const res = await fetch("/api/house/shopping", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "delete", id }),
-        });
-
-        const data = await res.json();
-        if (res.status === 404) {
-          // Già rimosso altrove: lo stato ottimistico è già corretto
-          fetchItems(false);
-          return;
-        }
-
-        if (!res.ok) {
-          throw new Error(data.error || "Errore durante l'eliminazione.");
-        }
-
-        if (deleteVersion >= latestVersionRef.current && activeMutationsCountRef.current === 1) {
-          setItems(data.items || []);
-        }
-      } catch (err: any) {
-        setError(err.message);
-        fetchItems(false);
-      } finally {
-        activeMutationsCountRef.current = Math.max(0, activeMutationsCountRef.current - 1);
-        pendingItemIdsRef.current.delete(id);
-        setPendingItemIds(new Set(pendingItemIdsRef.current));
-      }
-    });
+    controllerRef.current?.deleteItem(id);
   };
 
   const toBuyItems = items.filter((i) => !i.isBought);
