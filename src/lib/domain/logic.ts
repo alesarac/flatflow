@@ -340,6 +340,72 @@ export function revokeRoommateAbsence(
 }
 
 /**
+ * Determina l'assegnatario appropriato per una pulizia in base alla rotazione settimanale,
+ * alle assenze correnti e alle rinunce registrate.
+ * Restituisce null se tutti i coinquilini risultano assenti o hanno rinunciato.
+ */
+export function determineCleaningAssignee(
+  areaId: number,
+  weekKey: string,
+  absentRoommates: number[],
+  declinedBy: number[],
+  roommates: Roommate[] = []
+): { assignedTo: number | null; assignedToName: string | null } {
+  const weekIndex = getRotationWeekIndex(weekKey);
+  const baseRoommate = getBaseAssignment(areaId, weekIndex);
+  let assignedTo: number | null = baseRoommate;
+
+  if (absentRoommates.includes(baseRoommate) || declinedBy.includes(baseRoommate)) {
+    assignedTo = findSubstitute(baseRoommate, absentRoommates, declinedBy);
+  }
+
+  const assignedRoommate = assignedTo !== null ? roommates.find((r) => r.id === assignedTo) : null;
+  return {
+    assignedTo,
+    assignedToName: assignedRoommate ? assignedRoommate.name : null,
+  };
+}
+
+/**
+ * Annulla il completamento di una pulizia settimanale.
+ * Cancella i dati del completamento (isCompleted: false, completedAt: null, completedByName: null)
+ * e ripristina lo stato e l'assegnatario legittimo dell'attività.
+ */
+export function uncompleteCleaningTask(
+  task: CleaningTask,
+  absentRoommates: number[],
+  roommates: Roommate[] = []
+): CleaningTask {
+  if (!task.isCompleted) {
+    throw new Error("L'attività non risulta completata.");
+  }
+
+  let { assignedTo, assignedToName } = determineCleaningAssignee(
+    task.areaId,
+    task.weekKey,
+    absentRoommates,
+    task.declinedBy,
+    roommates
+  );
+
+  // Se l'attività era esplicitamente priva di incaricato (assignedTo === null),
+  // o se il ricalcolo determina che tutti sono assenti o hanno rinunciato, mantiene null
+  if (task.assignedTo === null) {
+    assignedTo = null;
+    assignedToName = null;
+  }
+
+  return {
+    ...task,
+    isCompleted: false,
+    completedAt: null,
+    completedByName: null,
+    assignedTo,
+    assignedToName,
+  };
+}
+
+/**
  * TRASH MANAGEMENT
  */
 

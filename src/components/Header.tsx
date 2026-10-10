@@ -11,20 +11,12 @@ interface HeaderProps {
 
 export function Header({ weekLabel, activeRoommate, onOpenPicker }: HeaderProps) {
   return (
-    <header className="px-5 pt-safe pb-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-30 transition-colors">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-sky-600 dark:from-indigo-400 dark:to-sky-400 bg-clip-text text-transparent">
-              Flatflow
-            </span>
-          </div>
-          {weekLabel && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-              <span>Settimana: {weekLabel}</span>
-            </div>
-          )}
+    <header className="border-b border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-30 transition-colors">
+      <div className="px-5 pt-safe pb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-sky-600 dark:from-indigo-400 dark:to-sky-400 bg-clip-text text-transparent">
+            Flatflow
+          </span>
         </div>
 
         <button
@@ -42,6 +34,19 @@ export function Header({ weekLabel, activeRoommate, onOpenPicker }: HeaderProps)
           {activeRoommate && <Sparkles className="w-3 h-3 text-indigo-600/70 dark:text-indigo-400/70" />}
         </button>
       </div>
+
+      {weekLabel && (
+        <div className="px-5 py-2 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/90 dark:bg-slate-950/40 flex items-center gap-2 text-xs">
+          <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">
+            SETTIMANA IN CORSO
+          </span>
+          <span className="text-slate-300 dark:text-slate-700">•</span>
+          <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+            {weekLabel}
+          </span>
+        </div>
+      )}
     </header>
   );
 }

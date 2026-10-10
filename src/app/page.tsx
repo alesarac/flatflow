@@ -26,6 +26,7 @@ export default function HomePage() {
     refresh,
     completeCleaning,
     declineCleaning,
+    uncompleteCleaning,
     toggleAbsence,
     reportTrash,
     declineTrash,
@@ -154,6 +155,13 @@ export default function HomePage() {
                     onDecline={(taskId, rId) =>
                       declineCleaning(taskId, currentWeek.weekKey, rId)
                     }
+                    onUncomplete={(taskId) => {
+                      if (myRoommateId !== null) {
+                        uncompleteCleaning(taskId, currentWeek.weekKey, myRoommateId);
+                      } else {
+                        setShowPickerModal(true);
+                      }
+                    }}
                   />
                 ))}
               </div>

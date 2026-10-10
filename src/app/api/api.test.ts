@@ -553,6 +553,245 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     area0 = currentWeek.cleanings.find((t) => t.id === task.id)!;
     expect(area0.assignedTo).toBeNull();
   });
+
+  it("allows undoing cleaning completion in current week by the profile that completed it, maintaining consistent history", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[0];
+    const assignedId = task.assignedTo!;
+
+    // 1. Completa il compito
+    const completeRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "complete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: assignedId,
+        }),
+      })
+    );
+    expect(completeRes.status).toBe(200);
+
+    // Verifica che sia completato e presente nello storico
+    let updatedWeek = await repo.getWeekState(currentWeekKey);
+    let updatedTask = updatedWeek.cleanings.find((t) => t.id === task.id)!;
+    expect(updatedTask.isCompleted).toBe(true);
+    expect(updatedTask.completedByName).toBe("Coinquilino 1");
+
+    let historyRes = await historyRoute(
+      new Request("http://localhost/api/house/history", {
+        headers: authHeaders,
+      })
+    );
+    let historyData = await historyRes.json();
+    const foundInHistory = historyData.items.find((item: any) => item.id === `clean-${task.id}`);
+    expect(foundInHistory).toBeDefined();
+    expect(foundInHistory.status).toBe("completed");
+
+    // 2. Annulla il completamento con il profilo corretto
+    const undoRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "uncomplete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: assignedId,
+        }),
+      })
+    );
+    expect(undoRes.status).toBe(200);
+
+    // 3. Verifica che il compito sia ripristinato allo stato non completato e dati di completamento cancellati
+    updatedWeek = await repo.getWeekState(currentWeekKey);
+    updatedTask = updatedWeek.cleanings.find((t) => t.id === task.id)!;
+    expect(updatedTask.isCompleted).toBe(false);
+    expect(updatedTask.completedAt).toBeNull();
+    expect(updatedTask.completedByName).toBeNull();
+    expect(updatedTask.assignedTo).toBe(assignedId);
+
+    // 4. Verifica che nello storico non compaia più
+    historyRes = await historyRoute(
+      new Request("http://localhost/api/house/history", {
+        headers: authHeaders,
+      })
+    );
+    historyData = await historyRes.json();
+    const notFoundInHistory = historyData.items.find((item: any) => item.id === `clean-${task.id}`);
+    expect(notFoundInHistory).toBeUndefined();
+  });
+
+  it("verifies server-side authorization and error cases for cleaning undo (profile mismatch, past week, already undone)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[1];
+    const assignedId = task.assignedTo!;
+
+    // Completa il compito
+    await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "complete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: assignedId,
+        }),
+      })
+    );
+
+    // 1. Profilo non corrispondente riceve 403 Forbidden
+    const otherId = (assignedId + 1) % 3;
+    const wrongProfileRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "uncomplete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: otherId,
+        }),
+      })
+    );
+    expect(wrongProfileRes.status).toBe(403);
+    const wrongData = await wrongProfileRes.json();
+    expect(wrongData.error).toContain("registrato il completamento");
+
+    // 2. Richiesta per settimana passata riceve 400 Bad Request
+    const pastWeekRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "uncomplete",
+          weekKey: "2026-01-05",
+          taskId: task.id,
+          roommateId: assignedId,
+        }),
+      })
+    );
+    expect(pastWeekRes.status).toBe(400);
+
+    // 3. Annullamento riuscito
+    const validUndo = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "uncomplete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: assignedId,
+        }),
+      })
+    );
+    expect(validUndo.status).toBe(200);
+
+    // 4. Tentativo ripetuto su compito già non completato riceve 409 Conflict
+    const repeatedUndo = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "uncomplete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: assignedId,
+        }),
+      })
+    );
+    expect(repeatedUndo.status).toBe(409);
+  });
+
+  it("handles concurrent uncomplete requests and restores unassigned tasks correctly (assignedTo: null)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[2];
+
+    // 1. Simula attività originariamente senza incaricato
+    task.assignedTo = null;
+    task.assignedToName = null;
+    task.declinedBy = [];
+    await repo.updateCleaningTask(task);
+
+    // 2. Un coinquilino completa il compito
+    const completeRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          action: "complete",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: 0,
+        }),
+      })
+    );
+    // Completa riuscita (o con volunteer)
+    expect(completeRes.status).toBe(200);
+
+    // 3. Simula richieste concorrenti di annullamento:
+    // La prima richiesta deve riuscire, la seconda simultanea riceve 409 Conflict
+    const undoReq1 = new Request("http://localhost/api/house/cleanings", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: "uncomplete",
+        weekKey: currentWeekKey,
+        taskId: task.id,
+        roommateId: 0,
+      }),
+    });
+    const undoReq2 = new Request("http://localhost/api/house/cleanings", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: "uncomplete",
+        weekKey: currentWeekKey,
+        taskId: task.id,
+        roommateId: 0,
+      }),
+    });
+
+    const res1 = await cleaningsRoute(undoReq1);
+    expect(res1.status).toBe(200);
+
+    const res2 = await cleaningsRoute(undoReq2);
+    expect(res2.status).toBe(409);
+
+    // 4. Verifica che il compito originariamente senza incaricato torni con assignedTo = null
+    const finalWeek = await repo.getWeekState(currentWeekKey);
+    const finalTask = finalWeek.cleanings.find((t) => t.id === task.id)!;
+    expect(finalTask.isCompleted).toBe(false);
+    expect(finalTask.completedAt).toBeNull();
+    expect(finalTask.completedByName).toBeNull();
+    expect(finalTask.assignedTo).toBeNull();
+    expect(finalTask.assignedToName).toBeNull();
+  });
 });
 
 

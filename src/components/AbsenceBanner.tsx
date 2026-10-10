@@ -61,7 +61,7 @@ export function AbsenceBanner({
                 : "bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300 dark:bg-amber-600/15 dark:hover:bg-amber-600/25 dark:text-amber-300 dark:border-amber-500/30"
             }`}
           >
-            {isMeAbsent ? "Revoca assenza" : "Sono assente questa settimana"}
+            {isMeAbsent ? "Sono presente" : "Sono assente questa settimana"}
           </button>
         </div>
       ) : (

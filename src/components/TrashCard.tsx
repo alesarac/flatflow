@@ -65,9 +65,17 @@ export function TrashCard({
           <div>
             <h3 className="font-semibold text-slate-900 dark:text-white text-base leading-tight">Spazzatura</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {openTask
-                ? "Segnalazione aperta"
-                : `Prossimo di turno: ${nextInQueue?.name || "In attesa"}`}
+              {openTask ? (
+                assignedRoommate ? (
+                  <>
+                    Tocca a <span className={`font-medium ${isAssignedToMe ? "text-rose-600 dark:text-rose-400 font-semibold" : "text-slate-800 dark:text-slate-200"}`}>{assignedRoommate.name}</span>
+                  </>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">Nessun incaricato disponibile</span>
+                )
+              ) : (
+                `Prossimo di turno: ${nextInQueue?.name || "In attesa"}`
+              )}
             </p>
           </div>
         </div>
@@ -86,22 +94,7 @@ export function TrashCard({
 
       <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80">
         {openTask ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-900/80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800">
-              <span className="text-slate-500 dark:text-slate-400">Incaricato:</span>
-              <span
-                className={`font-semibold ${
-                  isAssignedToMe ? "text-rose-600 dark:text-rose-400 text-sm font-bold" : "text-slate-900 dark:text-white"
-                }`}
-              >
-                {isAssignedToMe
-                  ? "Tocca a te!"
-                  : assignedRoommate
-                  ? assignedRoommate.name
-                  : "Nessun incaricato disponibile"}
-              </span>
-            </div>
-
+          <div>
             {isAssignedToMe ? (
               // P1-02: Mostra i pulsanti SOLO all'assegnatario
               <div className="flex items-center gap-2">
@@ -140,13 +133,11 @@ export function TrashCard({
                 )}
                 <span>Ho buttato la spazzatura (prendi in carico)</span>
               </button>
-            ) : (
+            ) : isUnassigned ? (
               <div className="text-xs text-slate-500 dark:text-slate-400 py-1 text-center">
-                {isUnassigned
-                  ? "Tutti i coinquilini risultano assenti o hanno rifiutato."
-                  : `Incarico assegnato a ${assignedRoommate?.name || "un altro coinquilino"}.`}
+                Tutti i coinquilini risultano assenti o hanno rifiutato.
               </div>
-            )}
+            ) : null}
           </div>
         ) : (
           <button

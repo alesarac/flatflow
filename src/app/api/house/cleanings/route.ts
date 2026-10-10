@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
-import { declineCleaningTask, getWeekKey } from "@/lib/domain/logic";
+import { declineCleaningTask, getWeekKey, uncompleteCleaningTask } from "@/lib/domain/logic";
 
 export async function POST(req: Request) {
   const authenticated = await isRequestAuthenticated(req);
@@ -76,8 +76,8 @@ export async function POST(req: Request) {
       isCompleted: true,
       completedAt: new Date().toISOString(),
       completedByName: roommate.name,
-      assignedTo: roommateId,
-      assignedToName: roommate.name,
+      assignedTo: task.assignedTo !== null ? task.assignedTo : null,
+      assignedToName: task.assignedToName !== null ? task.assignedToName : null,
     };
 
     // P1-02: Aggiornamento condizionale atomico: verifica che non sia già completato
@@ -145,6 +145,58 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, week: updatedWeek });
   }
 
+  if (action === "uncomplete" || action === "undo_complete") {
+    if (typeof roommateId !== "number") {
+      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
+    }
+
+    const roommate = roommates.find((r) => r.id === roommateId);
+    if (!roommate) {
+      return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
+    }
+
+    const task = weekState.cleanings.find((t) => t.id === taskId);
+    if (!task) {
+      return NextResponse.json({ error: "Attività non trovata" }, { status: 404 });
+    }
+
+    if (!task.isCompleted) {
+      return NextResponse.json(
+        { error: "L'attività non risulta completata o è già stata annullata." },
+        { status: 409 }
+      );
+    }
+
+    // Consenti l'annullamento soltanto al profilo che ha registrato il completamento
+    if (!task.completedByName || task.completedByName !== roommate.name) {
+      return NextResponse.json(
+        { error: "Solo il coinquilino che ha registrato il completamento può annullarlo." },
+        { status: 403 }
+      );
+    }
+
+    // Ripristina lo stato precedente e l'assegnatario legittimo
+    const uncompletedTask = uncompleteCleaningTask(
+      task,
+      weekState.absentRoommates,
+      roommates
+    );
+
+    // Aggiornamento condizionale atomico: verifica che l'attività sia ancora completata
+    const updated = await repo.updateCleaningTask(uncompletedTask, {
+      isCompleted: true,
+    });
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "L'attività è già stata annullata o modificata da un'altra operazione." },
+        { status: 409 }
+      );
+    }
+
+    const updatedWeek = await repo.getWeekState(weekKey);
+    return NextResponse.json({ success: true, week: updatedWeek });
+  }
 
   if (action === "set_absence") {
     if (typeof roommateId !== "number" || typeof isAbsent !== "boolean") {

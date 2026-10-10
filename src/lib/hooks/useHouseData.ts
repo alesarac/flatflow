@@ -158,6 +158,41 @@ export function useHouseData() {
     }
   };
 
+  const uncompleteCleaning = async (taskId: string, weekKey: string, roommateId: number) => {
+    setSubmittingTaskId(taskId);
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/house/cleanings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "uncomplete",
+          taskId,
+          weekKey,
+          roommateId,
+        }),
+      });
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Impossibile annullare il completamento dell'attività";
+        setError(msg);
+        alert(msg);
+        await fetchData();
+        return false;
+      }
+
+      await fetchData();
+      return true;
+    } catch {
+      setError("Errore di rete durante l'annullamento.");
+      return false;
+    } finally {
+      setSubmittingTaskId(null);
+      setIsSubmitting(false);
+    }
+  };
+
   const toggleAbsence = async (weekKey: string, roommateId: number, isAbsent: boolean) => {
     setIsSubmitting(true);
     try {
@@ -336,6 +371,7 @@ export function useHouseData() {
     refresh: fetchData,
     completeCleaning,
     declineCleaning,
+    uncompleteCleaning,
     toggleAbsence,
     reportTrash: reportTrashAction,
     declineTrash: declineTrashAction,
