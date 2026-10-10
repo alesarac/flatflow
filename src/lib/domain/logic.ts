@@ -182,6 +182,29 @@ export function formatWeekLabel(weekKey: string): string {
 }
 
 /**
+ * Formatta l'intervallo completo della settimana in lingua italiana con mese esteso (es. "5 – 11 ottobre 2026").
+ */
+export function formatFullWeekLabel(weekKey: string): string {
+  const { monday, sunday } = parseWeekKey(weekKey);
+
+  const monthsItFull = [
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"
+  ];
+
+  const mMonth = monthsItFull[monday.month - 1];
+  const sMonth = monthsItFull[sunday.month - 1];
+
+  if (monday.month === sunday.month) {
+    return `${monday.day} – ${sunday.day} ${sMonth} ${sunday.year}`;
+  }
+  if (monday.year !== sunday.year) {
+    return `${monday.day} ${mMonth} ${monday.year} – ${sunday.day} ${sMonth} ${sunday.year}`;
+  }
+  return `${monday.day} ${mMonth} – ${sunday.day} ${sMonth} ${sunday.year}`;
+}
+
+/**
  * Calcola l'indice di rotazione da 0 a 2 per il ciclo fisso di 3 settimane.
  */
 export function getRotationWeekIndex(weekKey: string): number {

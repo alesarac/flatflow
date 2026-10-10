@@ -13,7 +13,6 @@ import {
   Moon,
   SunMedium,
   MapPin,
-  Sparkles,
 } from "lucide-react";
 import { useTheme } from "../lib/theme/ThemeContext";
 import { formatSunTime } from "../lib/theme/solar";
@@ -56,6 +55,10 @@ export function SettingsView({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const hasChanges = roommates.some(
+    (r) => names[r.id] !== undefined && names[r.id].trim() !== r.name
+  );
+
   const handleNameChange = (id: number, newName: string) => {
     setNames((prev) => ({ ...prev, [id]: newName }));
     setSavedSuccess(false);
@@ -64,6 +67,7 @@ export function SettingsView({
 
   const handleSaveNames = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasChanges) return;
     setSaving(true);
     setSavedSuccess(false);
     setSaveError(null);
@@ -94,37 +98,35 @@ export function SettingsView({
   };
 
   return (
-    <div className="p-4 space-y-6">
-      <div>
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Impostazioni</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Profilo locale, aspetto e configurazione casa
-        </p>
-      </div>
-
+    <div className="p-4 space-y-4 max-w-md mx-auto">
       {/* 1. Selezione profilo attivo */}
-      <div className="bg-white dark:bg-slate-850/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm transition-colors">
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-            Chi usa questo telefono?
-          </h3>
+      <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-sm transition-colors">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+            <Smartphone className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Chi usa questo telefono?
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              I compiti assegnati a questo profilo verranno mostrati in home.
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          I compiti assegnati a questo profilo verranno messi in risalto.
-        </p>
 
-        <div className="grid grid-cols-3 gap-2 pt-1">
+        <div className="grid grid-cols-3 gap-2 pt-0.5">
           {roommates.map((r) => {
             const isSelected = myRoommateId === r.id;
             return (
               <button
                 key={r.id}
+                type="button"
                 onClick={() => onSelectMyId(r.id)}
                 className={`py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center truncate ${
                   isSelected
-                    ? "bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-750"
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
                 }`}
               >
                 {r.name}
@@ -135,16 +137,16 @@ export function SettingsView({
       </div>
 
       {/* 2. Sezione Tema e Aspetto */}
-      <div className="bg-white dark:bg-slate-850/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm transition-colors">
+      <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-sm transition-colors">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <SunMedium className="w-4 h-4 text-amber-500" />
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-              Tema e Aspetto
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Tema e aspetto
             </h3>
           </div>
-          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            {resolvedTheme === "light" ? "Attivo: Chiaro" : "Attivo: Scuro"}
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            {resolvedTheme === "light" ? "Aspetto: Chiaro" : "Aspetto: Scuro"}
           </span>
         </div>
 
@@ -152,39 +154,45 @@ export function SettingsView({
           <button
             type="button"
             onClick={() => setMode("auto")}
-            className={`py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center flex flex-col items-center gap-1.5 ${
+            className={`py-3 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 ${
               mode === "auto"
-                ? "bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30"
-                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-750"
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
             }`}
           >
-            <Sparkles className="w-4 h-4" />
+            <span
+              className={`w-5 h-5 flex items-center justify-center font-bold text-xs border rounded-full ${
+                mode === "auto" ? "border-white" : "border-slate-400 dark:border-slate-500"
+              }`}
+            >
+              A
+            </span>
             <span>Automatico</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMode("light")}
-            className={`py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center flex flex-col items-center gap-1.5 ${
+            className={`py-3 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 ${
               mode === "light"
-                ? "bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30"
-                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-750"
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
             }`}
           >
-            <Sun className="w-4 h-4 text-amber-500" />
+            <Sun className={`w-5 h-5 ${mode === "light" ? "text-white" : "text-amber-500"}`} />
             <span>Chiaro</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMode("dark")}
-            className={`py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center flex flex-col items-center gap-1.5 ${
+            className={`py-3 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1.5 ${
               mode === "dark"
-                ? "bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30"
-                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-750"
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
             }`}
           >
-            <Moon className="w-4 h-4 text-indigo-400" />
+            <Moon className={`w-5 h-5 ${mode === "dark" ? "text-white" : "text-indigo-400"}`} />
             <span>Scuro</span>
           </button>
         </div>
@@ -195,7 +203,7 @@ export function SettingsView({
             <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               {coords && sunTimes?.sunrise && sunTimes?.sunset ? (
                 <p>
-                  Posizione registrata. Alba calcolata alle{" "}
+                  Posizione registrata. Alba alle{" "}
                   <strong className="text-slate-900 dark:text-slate-200">
                     {formatSunTime(sunTimes.sunrise)}
                   </strong>
@@ -207,9 +215,9 @@ export function SettingsView({
                 </p>
               ) : (
                 <p>
-                  Posizione non ancora autorizzata. Il tema passa a Chiaro dalle{" "}
+                  Posizione non ancora autorizzata. Tema chiaro dalle{" "}
                   <strong className="text-slate-900 dark:text-slate-200">07:00</strong> alle{" "}
-                  <strong className="text-slate-900 dark:text-slate-200">19:00</strong> e a Scuro negli altri orari.
+                  <strong className="text-slate-900 dark:text-slate-200">19:00</strong>, scuro negli altri orari.
                 </p>
               )}
             </div>
@@ -218,7 +226,7 @@ export function SettingsView({
               type="button"
               onClick={() => requestLocation()}
               disabled={locationLoading}
-              className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 dark:border-slate-700 text-xs font-medium border transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 dark:border-slate-700 text-xs font-medium border transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {locationLoading ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -255,11 +263,14 @@ export function SettingsView({
       {/* 3. Modifica dei tre coinquilini */}
       <form
         onSubmit={handleSaveNames}
-        className="bg-white dark:bg-slate-850/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm transition-colors"
+        className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm transition-colors"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               Nomi dei 3 coinquilini
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -271,8 +282,8 @@ export function SettingsView({
         <div className="space-y-3">
           {roommates.map((r) => (
             <div key={r.id} className="space-y-1">
-              <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Coinquilino {r.id + 1}
+              <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                COINQUILINO {r.id + 1}
               </label>
               <input
                 type="text"
@@ -302,8 +313,8 @@ export function SettingsView({
 
         <button
           type="submit"
-          disabled={saving}
-          className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-xs shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          disabled={saving || !hasChanges}
+          className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-sm shadow-md shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? (
             <>
@@ -317,32 +328,32 @@ export function SettingsView({
       </form>
 
       {/* 4. Installazione PWA */}
-      <div className="bg-slate-50 dark:bg-slate-850/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-2 shadow-sm transition-colors">
-        <div className="flex items-center gap-2">
-          <Smartphone className="w-4 h-4 text-sky-500" />
-          <h3 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider">
-            Uso da Smartphone (PWA)
-          </h3>
+      <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-2 shadow-sm transition-colors">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/50 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
+            <Smartphone className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Uso da smartphone (PWA)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              Per aprire la PWA come una vera app, tocca{" "}
+              <strong className="text-slate-700 dark:text-slate-300 font-semibold">
+                Condividi &gt; Aggiungi a schermata Home
+              </strong>
+              . Sarà più veloce e avrai l&apos;icona di Flatflow sul tuo telefono.
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-          Per aprirla come una vera app: su iPhone premi{" "}
-          <span className="text-slate-900 dark:text-white font-medium">Condividi</span> &gt;{" "}
-          <span className="text-slate-900 dark:text-white font-medium">
-            Aggiungi a schermata Home
-          </span>
-          . Su Android seleziona{" "}
-          <span className="text-slate-900 dark:text-white font-medium">
-            Installa applicazione
-          </span>{" "}
-          dal menu del browser.
-        </p>
       </div>
 
       {/* 5. Accesso casa / Logout */}
-      <div className="pt-2">
+      <div className="pt-1">
         <button
+          type="button"
           onClick={onLogout}
-          className="w-full py-3 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20 font-medium text-xs flex items-center justify-center gap-2 transition-colors active:scale-98"
+          className="w-full py-3 px-4 rounded-xl bg-rose-50/70 hover:bg-rose-100/80 text-rose-600 border border-rose-200/80 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20 font-medium text-xs flex items-center justify-center gap-2 transition-colors active:scale-98"
         >
           <LogOut className="w-4 h-4" />
           <span>Disconnetti questo dispositivo</span>

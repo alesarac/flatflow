@@ -11,6 +11,7 @@ import { CleaningCard } from "../components/CleaningCard";
 import { TrashCard } from "../components/TrashCard";
 import { HistoryView } from "../components/HistoryView";
 import { SettingsView } from "../components/SettingsView";
+import { WeekProgressCard } from "../components/WeekProgressCard";
 import { Loader2 } from "lucide-react";
 
 export default function HomePage() {
@@ -79,7 +80,6 @@ export default function HomePage() {
   return (
     <div className="flex-1 flex flex-col">
       <Header
-        weekLabel={currentWeek?.label}
         activeRoommate={activeRoommate}
         onOpenPicker={() => setShowPickerModal(true)}
       />
@@ -93,7 +93,13 @@ export default function HomePage() {
       <div className="flex-1">
         {currentTab === "home" && currentWeek && (
           <div className="p-4 space-y-5">
-            {/* 1. Presenze settimana */}
+            {/* 1. Settimana corrente e progresso pulizie */}
+            <WeekProgressCard
+              weekKey={currentWeek.weekKey}
+              cleanings={currentWeek.cleanings}
+            />
+
+            {/* 2. Presenze settimana */}
             <AbsenceBanner
               roommates={roommates}
               absentRoommates={currentWeek.absentRoommates}
@@ -104,11 +110,11 @@ export default function HomePage() {
               onOpenPicker={() => setShowPickerModal(true)}
             />
 
-            {/* 2. Spazzatura */}
+            {/* 3. Spazzatura */}
             <section className="space-y-2">
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Gestione Spazzatura
+                  Spazzatura
                 </h2>
               </div>
               <TrashCard
@@ -125,15 +131,12 @@ export default function HomePage() {
               />
             </section>
 
-            {/* 3. Pulizie della settimana */}
+            {/* 4. Pulizie della settimana */}
             <section className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Pulizie della Settimana
                 </h2>
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                  {currentWeek.cleanings.filter((c) => c.isCompleted).length} su 3 fatte
-                </span>
               </div>
 
               <div className="space-y-3">

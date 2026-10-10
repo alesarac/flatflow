@@ -82,7 +82,7 @@ export function CleaningCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
           {task.isCompleted ? (
             <>
               <div className="flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-1 rounded-full">
@@ -94,7 +94,7 @@ export function CleaningCard({
                   type="button"
                   onClick={() => onUncomplete(task.id)}
                   disabled={isSubmitting}
-                  className="text-xs px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all flex items-center gap-1 disabled:opacity-50 font-medium shadow-sm"
+                  className="text-xs px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all flex items-center gap-1 disabled:opacity-50 font-medium shadow-sm min-h-[30px]"
                   title="Annulla completamento"
                 >
                   {isSubmitting ? (
@@ -107,12 +107,12 @@ export function CleaningCard({
               )}
             </>
           ) : isAssignedToMe ? (
-            <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-300 dark:border-indigo-500/40 px-2.5 py-1 rounded-full animate-pulse">
+            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-300 dark:border-indigo-500/40 px-2.5 py-1 rounded-full">
               Tocca a te!
             </span>
           ) : isUnassigned ? (
-            <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
+            <span className="text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5" />
               Da coprire
             </span>
           ) : null}

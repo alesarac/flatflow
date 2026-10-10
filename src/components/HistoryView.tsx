@@ -2,7 +2,52 @@
 
 import { useEffect, useState } from "react";
 import { HistoryItem } from "../lib/domain/types";
-import { CheckCircle2, XCircle, Trash2, RefreshCw, Loader2, ArrowDown } from "lucide-react";
+import {
+  Trash2,
+  UtensilsCrossed,
+  Sparkles,
+  DoorOpen,
+  RefreshCw,
+  Loader2,
+  ArrowDown,
+} from "lucide-react";
+
+interface MonthGroup {
+  monthKey: string;
+  monthLabel: string;
+  items: HistoryItem[];
+}
+
+function groupHistoryByMonth(items: HistoryItem[]): MonthGroup[] {
+  const monthsIt = [
+    "GENNAIO", "FEBBRAIO", "MARZO", "APRILE", "MAGGIO", "GIUGNO",
+    "LUGLIO", "AGOSTO", "SETTEMBRE", "OTTOBRE", "NOVEMBRE", "DICEMBRE"
+  ];
+
+  const groups: MonthGroup[] = [];
+  const map = new Map<string, MonthGroup>();
+
+  for (const item of items) {
+    const d = new Date(item.date);
+    const year = isNaN(d.getFullYear()) ? 2026 : d.getFullYear();
+    const month = isNaN(d.getMonth()) ? 0 : d.getMonth();
+    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+
+    if (!map.has(monthKey)) {
+      const group: MonthGroup = {
+        monthKey,
+        monthLabel: `${monthsIt[month]} ${year}`,
+        items: [],
+      };
+      map.set(monthKey, group);
+      groups.push(group);
+    }
+
+    map.get(monthKey)!.items.push(item);
+  }
+
+  return groups;
+}
 
 export function HistoryView() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -63,17 +108,59 @@ export function HistoryView() {
     }
   };
 
+  const renderItemIcon = (item: HistoryItem) => {
+    if (item.type === "trash") {
+      return (
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-rose-50 text-rose-500 border-rose-100 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/40">
+          <Trash2 className="w-4 h-4" />
+        </div>
+      );
+    }
+
+    const titleLower = item.title.toLowerCase();
+    if (item.areaId === 0 || titleLower.includes("cucina")) {
+      return (
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-indigo-50 text-indigo-500 border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-900/40">
+          <UtensilsCrossed className="w-4 h-4" />
+        </div>
+      );
+    }
+
+    if (item.areaId === 1 || titleLower.includes("bagno")) {
+      return (
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-sky-50 text-sky-500 border-sky-100 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-900/40">
+          <Sparkles className="w-4 h-4" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/40">
+        <DoorOpen className="w-4 h-4" />
+      </div>
+    );
+  };
+
+  const getCleanTitle = (item: HistoryItem) => {
+    if (item.type === "trash") return "Spazzatura";
+    return item.title.replace(/^Pulizia\s+/i, "");
+  };
+
+  const monthGroups = groupHistoryByMonth(history);
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-5">
+      {/* Intestazione Storico */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Storico attività</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Pulizie e spazzatura registrate</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Pulizie e spazzatura degli ultimi mesi</p>
         </div>
         <button
           onClick={() => fetchHistory(0)}
           disabled={loading || loadingMore}
-          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-700/60 active:scale-95 transition-all disabled:opacity-50"
+          className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200 dark:border-slate-700/60 active:scale-95 transition-all disabled:opacity-50"
+          title="Aggiorna storico"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600 dark:text-indigo-400" : ""}`} />
         </button>
@@ -91,78 +178,71 @@ export function HistoryView() {
           <span>Caricamento storico in corso...</span>
         </div>
       ) : history.length === 0 ? (
-        <div className="py-12 text-center space-y-2 bg-slate-50 dark:bg-slate-850/50 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Nessuna attività registrata</p>
-          <p className="text-xs text-slate-500">
-            Le pulizie completate o incomplete e i conferimenti della spazzatura appariranno qui.
+        <div className="py-12 text-center space-y-2 bg-white dark:bg-slate-850/90 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Nessuna attività registrata</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Le pulizie completate o incomplete e la spazzatura appariranno qui cronologicamente.
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {history.map((item) => {
-            const isCleaning = item.type === "cleaning";
-            const isCompleted = item.status === "completed";
+        <div className="space-y-5">
+          {monthGroups.map((group) => (
+            <div key={group.monthKey} className="space-y-2">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 px-1">
+                {group.monthLabel}
+              </h3>
 
-            return (
-              <div
-                key={item.id}
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-850/90 border border-slate-200 dark:border-slate-800 shadow-sm text-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
-                      isCompleted
-                        ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
-                        : "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
-                    }`}
-                  >
-                    {isCleaning ? (
-                      isCompleted ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                      )
-                    ) : (
-                      <Trash2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    )}
-                  </div>
+              <div className="space-y-2">
+                {group.items.map((item) => {
+                  const isCompleted = item.status === "completed";
 
-                  <div>
-                    <div className="font-semibold text-slate-900 dark:text-slate-100 text-xs">
-                      {item.title}
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 rounded-2xl bg-white dark:bg-slate-850/90 border border-slate-200 dark:border-slate-800 shadow-sm text-sm transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {renderItemIcon(item)}
+
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 text-xs leading-tight truncate">
+                            {getCleanTitle(item)}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                            {item.personName}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 pl-2">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {formatDate(item.date)}
+                        </div>
+                        <div className="mt-0.5">
+                          {isCompleted ? (
+                            <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                              Completata
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                              Incompleta
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {item.personName}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {formatDate(item.date)}
-                  </div>
-                  <div className="mt-0.5">
-                    {isCompleted ? (
-                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                        Completata
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                        Incompleta
-                      </span>
-                    )}
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
 
           {hasMore && (
             <div className="pt-2 text-center">
               <button
                 onClick={() => fetchHistory(history.length)}
                 disabled={loadingMore}
-                className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-indigo-600 border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-indigo-300 dark:border-slate-700/80 text-xs font-semibold active:scale-95 transition-all inline-flex items-center gap-2 disabled:opacity-50 border"
+                className="py-2.5 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 text-indigo-600 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-indigo-400 dark:border-slate-700/80 text-xs font-semibold active:scale-95 transition-all inline-flex items-center gap-2 disabled:opacity-50 shadow-sm"
               >
                 {loadingMore ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
