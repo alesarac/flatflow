@@ -106,9 +106,9 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-indigo-500 selection:text-white transition-colors duration-200">
-        <main className="mx-auto max-w-md min-h-screen flex flex-col relative pb-24 shadow-2xl bg-white dark:bg-slate-900 border-x border-slate-200/80 dark:border-slate-800/80 transition-colors duration-200">
+        <div className="mx-auto max-w-md min-h-screen flex flex-col relative shadow-2xl bg-white dark:bg-slate-900 border-x border-slate-200/80 dark:border-slate-800/80 transition-colors duration-200">
           <ThemeProvider>{children}</ThemeProvider>
-        </main>
+        </div>
       </body>
     </html>
   );

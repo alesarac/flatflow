@@ -11,6 +11,7 @@ interface CleaningCardProps {
   isSubmitting?: boolean;
   onComplete: (taskId: string) => void;
   onDecline: (taskId: string, roommateId: number) => void;
+  onClaim: (taskId: string, roommateId: number) => void;
   onUncomplete?: (taskId: string) => void;
 }
 
@@ -22,13 +23,14 @@ export function CleaningCard({
   isSubmitting = false,
   onComplete,
   onDecline,
+  onClaim,
   onUncomplete,
 }: CleaningCardProps) {
   const area = AREAS.find((a) => a.id === task.areaId) || AREAS[0];
   const assignedRoommate = roommates.find((r) => r.id === task.assignedTo);
   const isAssignedToMe = myRoommateId !== null && task.assignedTo === myRoommateId;
   const isUnassigned = task.assignedTo === null;
-  const canClaim = isUnassigned && myRoommateId !== null && !isAbsentThisWeek && !task.declinedBy.includes(myRoommateId);
+  const canClaim = isUnassigned && myRoommateId !== null && !isAbsentThisWeek;
 
   // Consenti l'annullamento solo al profilo che ha registrato il completamento via ID stabile
   const myRoommate = myRoommateId !== null ? roommates.find((r) => r.id === myRoommateId) : undefined;
@@ -76,7 +78,7 @@ export function CleaningCard({
                   Tocca a <span className={`font-semibold ${isAssignedToMe ? "text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-200"}`}>{assignedRoommate?.name || task.assignedToName || `Coinquilino ${task.assignedTo + 1}`}</span>
                 </>
               ) : (
-                <span className="text-amber-600 dark:text-amber-400 font-medium">Nessun incaricato disponibile</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium text-[11px] sm:text-xs">Nessun incaricato disponibile</span>
               )}
             </p>
           </div>
@@ -111,7 +113,7 @@ export function CleaningCard({
               Tocca a te!
             </span>
           ) : isUnassigned ? (
-            <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+            <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
               <AlertTriangle className="w-3.5 h-3.5" />
               Da coprire
             </span>
@@ -149,13 +151,13 @@ export function CleaningCard({
             </div>
           ) : canClaim ? (
             <button
-              onClick={() => onComplete(task.id)}
+              onClick={() => onClaim(task.id, myRoommateId!)}
               disabled={isSubmitting}
               type="button"
               className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
               <ArrowRight className="w-4 h-4" />
-              <span>Prendo in carico questa pulizia</span>
+              <span>Me ne occupo io</span>
             </button>
           ) : null}
         </div>

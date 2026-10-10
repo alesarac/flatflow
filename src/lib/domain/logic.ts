@@ -311,6 +311,41 @@ export function declineCleaningTask(
 }
 
 /**
+ * Gestisce la presa in carico di una pulizia senza incaricato («Me ne occupo io»).
+ * Assegna il compito al coinquilino che si offre volontario, rimuove la sua eventuale
+ * rinuncia precedente da declinedBy, e mantiene il compito NON completato.
+ */
+export function claimCleaningTask(
+  task: CleaningTask,
+  absentRoommates: number[],
+  claimingRoommateId: number,
+  roommates: Roommate[] = []
+): CleaningTask {
+  if (task.isCompleted) {
+    throw new Error("L'attività risulta già completata.");
+  }
+
+  if (task.assignedTo !== null) {
+    throw new Error("L'attività ha già un incaricato assegnato.");
+  }
+
+  if (absentRoommates.includes(claimingRoommateId)) {
+    throw new Error("Un coinquilino assente non può prendere in carico l'attività.");
+  }
+
+  const claimingObj = roommates.find((r) => r.id === claimingRoommateId);
+  const updatedDeclined = task.declinedBy.filter((id) => id !== claimingRoommateId);
+
+  return {
+    ...task,
+    assignedTo: claimingRoommateId,
+    assignedToName: claimingObj ? claimingObj.name : null,
+    declinedBy: updatedDeclined,
+    isCompleted: false,
+  };
+}
+
+/**
  * Applica l'assenza settimanale di un coinquilino («Sono assente questa settimana»).
  * Riassegna le attività non completate attualmente assegnate al coinquilino assente.
  */
@@ -499,6 +534,37 @@ export function declineTrash(
     ...task,
     declinedBy: updatedDeclined,
     assignedTo: nextAssignee,
+  };
+}
+
+/**
+ * Gestisce la presa in carico della spazzatura senza incaricato («Me ne occupo io»).
+ * Assegna il compito al coinquilino che si offre volontario e rimuove la sua eventuale
+ * rinuncia precedente da declinedBy. Non tocca la coda equa e lascia il task aperto (status: "open").
+ */
+export function claimTrashTask(
+  task: TrashTask,
+  absentRoommates: number[],
+  claimingRoommateId: number
+): TrashTask {
+  if (task.status !== "open") {
+    throw new Error("L'incarico di spazzatura non è aperto.");
+  }
+
+  if (task.assignedTo !== null) {
+    throw new Error("L'incarico di spazzatura ha già un assegnatario.");
+  }
+
+  if (absentRoommates.includes(claimingRoommateId)) {
+    throw new Error("Un coinquilino assente non può prendere in carico la spazzatura.");
+  }
+
+  const updatedDeclined = task.declinedBy.filter((id) => id !== claimingRoommateId);
+
+  return {
+    ...task,
+    assignedTo: claimingRoommateId,
+    declinedBy: updatedDeclined,
   };
 }
 

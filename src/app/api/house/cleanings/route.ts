@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
-import { declineCleaningTask, getWeekKey, uncompleteCleaningTask } from "@/lib/domain/logic";
+import {
+  claimCleaningTask,
+  declineCleaningTask,
+  getWeekKey,
+  uncompleteCleaningTask,
+} from "@/lib/domain/logic";
 import { CleaningTask } from "@/lib/domain/types";
 
 export async function POST(req: Request) {
@@ -140,6 +145,66 @@ export async function POST(req: Request) {
     if (!updated) {
       return NextResponse.json(
         { error: "L'attività è già stata modificata o completata da un'altra operazione." },
+        { status: 409 }
+      );
+    }
+
+    const updatedWeek = await repo.getWeekState(weekKey);
+    return NextResponse.json({ success: true, week: updatedWeek });
+  }
+
+  if (action === "claim") {
+    if (typeof roommateId !== "number") {
+      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
+    }
+
+    const roommate = roommates.find((r) => r.id === roommateId);
+    if (!roommate) {
+      return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
+    }
+
+    const task = weekState.cleanings.find((t) => t.id === taskId);
+    if (!task) {
+      return NextResponse.json({ error: "Attività non trovata" }, { status: 404 });
+    }
+
+    if (task.isCompleted) {
+      return NextResponse.json({ error: "L'attività risulta già completata." }, { status: 409 });
+    }
+
+    // Il claim è consentito SOLO se l'attività è attualmente senza incaricato
+    if (task.assignedTo !== null) {
+      return NextResponse.json(
+        { error: "L'attività ha già un incaricato assegnato." },
+        { status: 409 }
+      );
+    }
+
+    // Coinquilino presente: i coinquilini assenti non possono prendere l'incarico
+    if (weekState.absentRoommates.includes(roommateId)) {
+      return NextResponse.json(
+        { error: "Un coinquilino assente non può prendere in carico l'attività." },
+        { status: 403 }
+      );
+    }
+
+    // Assegna al volontario e rimuove l'eventuale sua precedente rinuncia da declinedBy
+    const updatedTask = claimCleaningTask(
+      task,
+      weekState.absentRoommates,
+      roommateId,
+      roommates
+    );
+
+    // Aggiornamento condizionale atomico: verifica che non sia completata e sia ancora senza incaricato
+    const updated = await repo.updateCleaningTask(updatedTask, {
+      isCompleted: false,
+      assignedTo: null,
+    });
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "L'attività è già stata presa in carico o modificata da un'altra operazione." },
         { status: 409 }
       );
     }

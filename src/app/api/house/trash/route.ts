@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
-import { getWeekKey, reportTrash, declineTrash, reconcileOpenTrash } from "@/lib/domain/logic";
+import {
+  getWeekKey,
+  reportTrash,
+  declineTrash,
+  claimTrashTask,
+  reconcileOpenTrash,
+} from "@/lib/domain/logic";
 
 export async function POST(req: Request) {
   const authenticated = await isRequestAuthenticated(req);
@@ -149,19 +155,29 @@ export async function POST(req: Request) {
     if (openTask.assignedTo !== null) {
       return NextResponse.json(
         { error: "L'incarico ha già un assegnatario." },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
-    if (typeof roommateId !== "number" || currentWeek.absentRoommates.includes(roommateId)) {
+    if (typeof roommateId !== "number") {
+      return NextResponse.json({ error: "Profilo coinquilino non specificato" }, { status: 400 });
+    }
+
+    const roommate = roommates.find((r) => r.id === roommateId);
+    if (!roommate) {
+      return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
+    }
+
+    if (currentWeek.absentRoommates.includes(roommateId)) {
       return NextResponse.json(
-        { error: "Solo un coinquilino disponibile e presente può farsi carico dell'attività." },
+        { error: "Un coinquilino assente non può prendere in carico la spazzatura." },
         { status: 403 }
       );
     }
 
-    const taskToClaim = { ...openTask, assignedTo: roommateId };
-    const updated = await repo.updateTrashTask(taskToClaim, {
+    // Assegna al volontario e rimuove l'eventuale sua precedente rinuncia da declinedBy
+    const updatedTask = claimTrashTask(openTask, currentWeek.absentRoommates, roommateId);
+    const updated = await repo.updateTrashTask(updatedTask, {
       status: "open",
       assignedTo: null,
     });
@@ -173,7 +189,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, openTrashTask: taskToClaim, trashQueue: queue });
+    return NextResponse.json({ success: true, openTrashTask: updatedTask, trashQueue: queue });
   }
 
 

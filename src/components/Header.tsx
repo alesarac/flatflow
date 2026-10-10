@@ -10,8 +10,8 @@ interface HeaderProps {
 
 export function Header({ activeRoommate, onOpenPicker }: HeaderProps) {
   return (
-    <header className="border-b border-slate-100 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-30 transition-colors">
-      <div className="max-w-md mx-auto px-4 pt-3.5 pb-3 flex items-center justify-between">
+    <header className="border-b border-slate-100 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-30 transition-colors pt-safe">
+      <div className="max-w-md mx-auto px-4 pb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-extrabold text-2xl tracking-tight text-[#4355EC] dark:text-indigo-400">
             Flatflow

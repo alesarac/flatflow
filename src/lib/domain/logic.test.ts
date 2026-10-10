@@ -19,6 +19,8 @@ import {
   reconcileOpenTrash,
   determineCleaningAssignee,
   uncompleteCleaningTask,
+  claimCleaningTask,
+  claimTrashTask,
 } from "./logic";
 import { DEFAULT_ROOMMATES } from "./types";
 
@@ -360,6 +362,103 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
     const cleanings = createWeekCleanings("2026-10-05", [], roommates);
     expect(() => uncompleteCleaningTask(cleanings[0], [], roommates)).toThrow(
       "L'attività non risulta completata."
+    );
+  });
+});
+
+describe("Claiming Unassigned Tasks Domain Logic (Section 1)", () => {
+  const roommates = [
+    { id: 0, name: "Coinquilino 1" },
+    { id: 1, name: "Coinquilino 2" },
+    { id: 2, name: "Coinquilino 3" },
+  ];
+
+  it("claims an unassigned cleaning task, removes previous decline, leaves isCompleted false", () => {
+    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
+    let task = cleanings[0]; // assigned to 0
+
+    // 0 declines -> assigned to 1
+    task = declineCleaningTask(task, [], 0, roommates);
+    // 1 declines -> assigned to 2
+    task = declineCleaningTask(task, [], 1, roommates);
+    // 2 declines -> assigned to null (unassigned)
+    task = declineCleaningTask(task, [], 2, roommates);
+
+    expect(task.assignedTo).toBeNull();
+    expect(task.declinedBy).toEqual([0, 1, 2]);
+
+    // Roommate 0 changes mind and claims
+    const claimed = claimCleaningTask(task, [], 0, roommates);
+    expect(claimed.assignedTo).toBe(0);
+    expect(claimed.assignedToName).toBe("Coinquilino 1");
+    expect(claimed.declinedBy).toEqual([1, 2]); // 0 removed from declinedBy
+    expect(claimed.isCompleted).toBe(false);
+
+    // Now roommate 0 can decline again if needed
+    const declinedAgain = declineCleaningTask(claimed, [], 0, roommates);
+    expect(declinedAgain.assignedTo).toBeNull();
+    expect(declinedAgain.declinedBy).toContain(0);
+  });
+
+  it("rejects claiming a cleaning if already assigned or completed or absent", () => {
+    const cleanings = createWeekCleanings("2026-10-05", [], roommates);
+    const task = cleanings[0]; // assigned to 0
+
+    // Cannot claim already assigned task
+    expect(() => claimCleaningTask(task, [], 1, roommates)).toThrow(
+      "L'attività ha già un incaricato assegnato."
+    );
+
+    // Unassigned task but claimant is absent
+    const unassigned = { ...task, assignedTo: null, assignedToName: null };
+    expect(() => claimCleaningTask(unassigned, [1], 1, roommates)).toThrow(
+      "Un coinquilino assente non può prendere in carico l'attività."
+    );
+
+    // Already completed
+    const completed = { ...unassigned, isCompleted: true };
+    expect(() => claimCleaningTask(completed, [], 1, roommates)).toThrow(
+      "L'attività risulta già completata."
+    );
+  });
+
+  it("claims an unassigned trash task, removes previous decline, leaves open", () => {
+    const trashQueue = [0, 1, 2];
+    let openTrash = reportTrash(trashQueue, [], null); // assigned to 0
+    expect(openTrash.assignedTo).toBe(0);
+
+    // 0 declines -> assigned to 1
+    openTrash = declineTrash(openTrash, trashQueue, [], 0);
+    // 1 declines -> assigned to 2
+    openTrash = declineTrash(openTrash, trashQueue, [], 1);
+    // 2 declines -> assigned to null
+    openTrash = declineTrash(openTrash, trashQueue, [], 2);
+
+    expect(openTrash.assignedTo).toBeNull();
+    expect(openTrash.declinedBy).toEqual([0, 1, 2]);
+
+    // Roommate 1 changes mind and claims
+    const claimed = claimTrashTask(openTrash, [], 1);
+    expect(claimed.assignedTo).toBe(1);
+    expect(claimed.declinedBy).toEqual([0, 2]); // 1 removed from declinedBy
+    expect(claimed.status).toBe("open");
+  });
+
+  it("rejects claiming trash if already assigned or closed or absent", () => {
+    const openTrash = reportTrash([0, 1, 2], [], null); // assigned to 0
+
+    expect(() => claimTrashTask(openTrash, [], 1)).toThrow(
+      "L'incarico di spazzatura ha già un assegnatario."
+    );
+
+    const unassigned = { ...openTrash, assignedTo: null };
+    expect(() => claimTrashTask(unassigned, [2], 2)).toThrow(
+      "Un coinquilino assente non può prendere in carico la spazzatura."
+    );
+
+    const completed = { ...unassigned, status: "completed" as const };
+    expect(() => claimTrashTask(completed, [], 1)).toThrow(
+      "L'incarico di spazzatura non è aperto."
     );
   });
 });

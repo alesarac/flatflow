@@ -1,7 +1,7 @@
 "use client";
 
 import { Roommate, TrashTask } from "../lib/domain/types";
-import { Trash2, AlertCircle, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
+import { Trash2, AlertCircle, AlertTriangle, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 
 interface TrashCardProps {
   openTask: TrashTask | null;
@@ -35,13 +35,13 @@ export function TrashCard({
   const isAssignedToMe = myRoommateId !== null && openTask?.assignedTo === myRoommateId;
   const isUnassigned = Boolean(openTask && openTask.assignedTo === null);
   const canReport = !openTask && myRoommateId !== null;
-  const canClaimOrComplete = isUnassigned && myRoommateId !== null && !isAbsentThisWeek;
+  const canClaim = isUnassigned && myRoommateId !== null && !isAbsentThisWeek;
 
   // Prossimo in coda se la spazzatura è chiusa
   const nextInQueueId = trashQueue[0];
   const nextInQueue = roommates.find((r) => r.id === nextInQueueId);
 
-  const hasBottomActions = openTask ? (isAssignedToMe || canClaimOrComplete) : canReport;
+  const hasBottomActions = openTask ? (isAssignedToMe || canClaim) : canReport;
 
   return (
     <div
@@ -73,7 +73,7 @@ export function TrashCard({
                     Tocca a <span className={`font-semibold ${isAssignedToMe ? "text-rose-600 dark:text-rose-400" : "text-slate-700 dark:text-slate-200"}`}>{assignedRoommate.name}</span>
                   </>
                 ) : (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">Nessun incaricato disponibile</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-medium text-[11px] sm:text-xs">Nessun incaricato disponibile</span>
                 )
               ) : (
                 `Prossimo di turno: ${nextInQueue?.name || "In attesa"}`
@@ -83,10 +83,17 @@ export function TrashCard({
         </div>
 
         {openTask ? (
-          <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 bg-white/90 dark:bg-rose-950/50 border border-rose-200/90 dark:border-rose-800/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm shrink-0">
-            <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-            Piena
-          </span>
+          openTask.assignedTo === null ? (
+            <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Da coprire
+            </span>
+          ) : (
+            <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 bg-white/90 dark:bg-rose-950/50 border border-rose-200/90 dark:border-rose-800/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm shrink-0">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+              Piena
+            </span>
+          )
         ) : (
           <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 px-3 py-1 rounded-full shrink-0">
             A posto
@@ -124,7 +131,7 @@ export function TrashCard({
                     Non posso
                   </button>
                 </div>
-              ) : canClaimOrComplete ? (
+              ) : canClaim ? (
                 <button
                   onClick={() => onClaim(myRoommateId!)}
                   disabled={isSubmitting}
@@ -132,7 +139,7 @@ export function TrashCard({
                   className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   <ArrowRight className="w-4 h-4" />
-                  <span>Prendo in carico la spazzatura</span>
+                  <span>Me ne occupo io</span>
                 </button>
               ) : null}
             </div>

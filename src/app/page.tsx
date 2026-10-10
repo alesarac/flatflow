@@ -27,6 +27,7 @@ export default function HomePage() {
     refresh,
     completeCleaning,
     declineCleaning,
+    claimCleaning,
     uncompleteCleaning,
     toggleAbsence,
     reportTrash,
@@ -90,7 +91,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <main className="flex-1 max-w-md mx-auto w-full pb-24">
+      <main className="flex-1 max-w-md mx-auto w-full pb-28 pb-safe">
         {currentTab === "home" && currentWeek && (
           <div className="p-4 space-y-5">
             {/* 1. Settimana corrente e progresso pulizie */}
@@ -161,6 +162,13 @@ export default function HomePage() {
                     onDecline={(taskId, rId) =>
                       declineCleaning(taskId, currentWeek.weekKey, rId)
                     }
+                    onClaim={(taskId, rId) => {
+                      if (myRoommateId !== null) {
+                        claimCleaning(taskId, currentWeek.weekKey, rId);
+                      } else {
+                        setShowPickerModal(true);
+                      }
+                    }}
                     onUncomplete={(taskId) => {
                       if (myRoommateId !== null) {
                         uncompleteCleaning(taskId, currentWeek.weekKey, myRoommateId);

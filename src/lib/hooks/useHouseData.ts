@@ -193,6 +193,41 @@ export function useHouseData() {
     }
   };
 
+  const claimCleaning = async (taskId: string, weekKey: string, roommateId: number) => {
+    setSubmittingTaskId(taskId);
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/house/cleanings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "claim",
+          taskId,
+          weekKey,
+          roommateId,
+        }),
+      });
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        const msg = resJson.error || "Impossibile prendere in carico l'attività";
+        setError(msg);
+        alert(msg);
+        await fetchData();
+        return false;
+      }
+
+      await fetchData();
+      return true;
+    } catch {
+      setError("Errore di rete durante la presa in carico.");
+      return false;
+    } finally {
+      setSubmittingTaskId(null);
+      setIsSubmitting(false);
+    }
+  };
+
   const toggleAbsence = async (weekKey: string, roommateId: number, isAbsent: boolean) => {
     setIsSubmitting(true);
     try {
@@ -371,6 +406,7 @@ export function useHouseData() {
     refresh: fetchData,
     completeCleaning,
     declineCleaning,
+    claimCleaning,
     uncompleteCleaning,
     toggleAbsence,
     reportTrash: reportTrashAction,
