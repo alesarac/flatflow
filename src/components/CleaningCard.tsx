@@ -8,7 +8,6 @@ import {
   Check,
   CheckCircle2,
   AlertTriangle,
-  Clock,
   Hand,
   Loader2,
   Undo2,
@@ -92,85 +91,33 @@ export function CleaningCard({
   };
 
   const iconStyle = getIconStyle();
-
-  // 1. Scheda per pulizia COMPLETATA: icona e spunta nella prima riga, titolo a tutta larghezza senza spezzature a metà parola, Annulla in basso a destra (min 44px)
-  if (task.isCompleted) {
-    return (
-      <div
-        className={`rounded-2xl border shadow-sm p-4 transition-colors ${getCardStyle()}`}
-      >
-        {/* Prima riga: icona a sinistra e spunta verde a destra */}
-        <div className="flex items-center justify-between">
-          <div
-            className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${iconStyle.box}`}
-          >
-            {renderIcon()}
-          </div>
-
-          <div className="flex items-center shrink-0">
-            <Check
-              className="w-5 h-5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]"
-              aria-label="Completata"
-            />
-          </div>
-        </div>
-
-        {/* Seconda riga: titolo e completamento a tutta larghezza, a capo solo tra parole intere */}
-        <div className="mt-3">
-          <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug break-normal">
-            {area.name}
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-normal break-normal">
-            Completata da{" "}
-            <span className="font-medium text-slate-700 dark:text-slate-300">
-              {task.completedByName || "Coinquilino"}
-            </span>
-          </p>
-        </div>
-
-        {/* Terza riga: pulsante Annulla in basso a destra con area premibile di almeno 44px quando disponibile */}
-        {canUndo && onUncomplete && (
-          <div className="mt-2.5 flex justify-end">
-            <button
-              type="button"
-              onClick={() => onUncomplete(task.id)}
-              disabled={isSubmitting}
-              className="min-h-[44px] min-w-[44px] px-3 py-2 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium inline-flex items-center justify-center gap-1.5 transition-all active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl"
-              title="Annulla completamento"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Undo2 className="w-4 h-4 text-slate-400 dark:text-slate-400" />
-              )}
-              <span>Annulla</span>
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 2. Scheda per pulizia ANCORA DA SVOLGERE (invariata)
-  const hasBottomActions = isAssignedToMe || canClaim;
+  const hasBottomActions = !task.isCompleted && (isAssignedToMe || canClaim);
 
   return (
     <div
       className={`rounded-2xl border shadow-sm p-4 transition-colors ${getCardStyle()}`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3.5 min-w-0">
+      {/* Intestazione compatta e coerente: icona a sinistra, titolo e descrizione accanto, elemento di stato a destra */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3.5 min-w-0 flex-1">
           <div
             className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${iconStyle.box}`}
           >
             {renderIcon()}
           </div>
-          <div className="min-w-0">
-            <h3 className="font-bold text-slate-900 dark:text-white text-base leading-tight truncate">
+          <div className="min-w-0 flex-1 pt-0.5">
+            <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug break-normal">
               {area.name}
             </h3>
-            {!isUnassigned && !isAssignedToMe ? (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            {task.isCompleted ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-normal break-normal">
+                Completata da{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {task.completedByName || "Coinquilino"}
+                </span>
+              </p>
+            ) : !isUnassigned && !isAssignedToMe ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-normal break-normal">
                 Tocca a{" "}
                 <span className="font-medium text-slate-700 dark:text-slate-300">
                   {assignedRoommate?.name || task.assignedToName || `Coinquilino ${task.assignedTo! + 1}`}
@@ -180,20 +127,43 @@ export function CleaningCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {isUnassigned ? (
+        {/* Elemento a destra: solo spunta verde per completate, badge Da coprire per non assegnate, nessun badge per Da pulire */}
+        {task.isCompleted ? (
+          <div className="flex items-center shrink-0 pt-1">
+            <Check
+              className="w-5 h-5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]"
+              aria-label="Completata"
+            />
+          </div>
+        ) : isUnassigned ? (
+          <div className="flex items-center shrink-0 pt-0.5">
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1 rounded-full shadow-sm">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
               <span>Da coprire</span>
             </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/60 px-3 py-1 rounded-full shadow-sm">
-              <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span>Da pulire</span>
-            </span>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
+
+      {/* Azione Annulla: solo per chi ha completato l'attività, su riga separata in basso a destra per non comprimere il titolo */}
+      {task.isCompleted && canUndo && onUncomplete && (
+        <div className="mt-2.5 flex justify-end">
+          <button
+            type="button"
+            onClick={() => onUncomplete(task.id)}
+            disabled={isSubmitting}
+            className="min-h-[44px] min-w-[44px] px-3 py-2 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium inline-flex items-center justify-center gap-1.5 transition-all active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl"
+            title="Annulla completamento"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Undo2 className="w-4 h-4 text-slate-400 dark:text-slate-400" />
+            )}
+            <span>Annulla</span>
+          </button>
+        </div>
+      )}
 
       {/* Azioni disponibili per attività non completate */}
       {hasBottomActions && (
