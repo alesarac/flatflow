@@ -251,9 +251,9 @@ npm run db:reset
 
 **Come funziona:**
 
-1. Lo script legge la stringa di connessione PostgreSQL da `DATABASE_URL` (in `.env.local` o variabile d'ambiente); se non è presente, te la chiederà a terminale in modo sicuro senza salvarla.
-2. Ti mostrerà un riepilogo e chiederà di digitare **`CONFERMA`** prima di procedere.
-3. Eseguirà lo script transazionale `supabase/reset.sql` tramite `psql` e confermerà l'esito.
+1. Lo script legge la stringa di connessione PostgreSQL da `DATABASE_URL` (in `.env.local` o variabile d'ambiente); se non è presente, te la chiederà a terminale in modo sicuro (con input oscurato a schermo).
+2. Ti mostrerà i dettagli del database di destinazione (host, progetto Supabase, database, utente e porta, senza mai mostrare o esporre la password) e chiederà di digitare **`CONFERMA`** prima di procedere.
+3. Eseguirà lo script transazionale `supabase/reset.sql` tramite `psql` con arresto immediato in caso di errore (`-v ON_ERROR_STOP=1`), gestendo la password in modo sicuro tramite variabile d'ambiente temporanea.
 
 ### Metodo 2 — Direttamente da Supabase SQL Editor (Alternativa senza strumenti locali)
 
