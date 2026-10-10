@@ -21,6 +21,7 @@ import {
   uncompleteCleaningTask,
   claimCleaningTask,
   claimTrashTask,
+  getWeeklyProgressBarSegments,
 } from "./logic";
 import { DEFAULT_ROOMMATES } from "./types";
 
@@ -462,6 +463,104 @@ describe("Claiming Unassigned Tasks Domain Logic (Section 1)", () => {
     );
   });
 });
+
+describe("Weekly Progress Bar Logic (Point 6)", () => {
+  const roommates = [
+    { id: 0, name: "Coinquilino 1" },
+    { id: 1, name: "Coinquilino 2" },
+    { id: 2, name: "Coinquilino 3" },
+  ];
+
+  it("0 cleanings completed: all 3 segments are gray (false)", () => {
+    const cleanings = [
+      { areaId: 0, isCompleted: false },
+      { areaId: 1, isCompleted: false },
+      { areaId: 2, isCompleted: false },
+    ];
+    expect(getWeeklyProgressBarSegments(cleanings)).toEqual([false, false, false]);
+  });
+
+  it("1 cleaning completed: 1st segment is green (true) regardless of which area was cleaned", () => {
+    // Fundamental example from specification:
+    // If area 2 (Ingresso e corridoio) is completed FIRST, segment 0 must be true, NOT segment 2!
+    const onlyArea2Done = [
+      { areaId: 0, isCompleted: false },
+      { areaId: 1, isCompleted: false },
+      { areaId: 2, isCompleted: true },
+    ];
+    expect(getWeeklyProgressBarSegments(onlyArea2Done)).toEqual([true, false, false]);
+
+    // If area 1 (Bagno) is completed first:
+    const onlyArea1Done = [
+      { areaId: 0, isCompleted: false },
+      { areaId: 1, isCompleted: true },
+      { areaId: 2, isCompleted: false },
+    ];
+    expect(getWeeklyProgressBarSegments(onlyArea1Done)).toEqual([true, false, false]);
+
+    // If area 0 (Cucina) is completed first:
+    const onlyArea0Done = [
+      { areaId: 0, isCompleted: true },
+      { areaId: 1, isCompleted: false },
+      { areaId: 2, isCompleted: false },
+    ];
+    expect(getWeeklyProgressBarSegments(onlyArea0Done)).toEqual([true, false, false]);
+  });
+
+  it("2 cleanings completed: 1st and 2nd segments are green, 3rd is gray, regardless of order", () => {
+    // Area 2 and Area 0 done
+    const area2And0Done = [
+      { areaId: 0, isCompleted: true },
+      { areaId: 1, isCompleted: false },
+      { areaId: 2, isCompleted: true },
+    ];
+    expect(getWeeklyProgressBarSegments(area2And0Done)).toEqual([true, true, false]);
+
+    // Area 1 and Area 2 done
+    const area1And2Done = [
+      { areaId: 0, isCompleted: false },
+      { areaId: 1, isCompleted: true },
+      { areaId: 2, isCompleted: true },
+    ];
+    expect(getWeeklyProgressBarSegments(area1And2Done)).toEqual([true, true, false]);
+  });
+
+  it("3 cleanings completed: all 3 segments are green", () => {
+    const allDone = [
+      { areaId: 0, isCompleted: true },
+      { areaId: 1, isCompleted: true },
+      { areaId: 2, isCompleted: true },
+    ];
+    expect(getWeeklyProgressBarSegments(allDone)).toEqual([true, true, true]);
+  });
+
+  it("correctly regresses from N to N-1 (always from right to left) upon undoing cleanings", () => {
+    // Start with all 3 completed
+    const baseTasks = createWeekCleanings("2026-10-05", [], roommates);
+    const task0 = { ...baseTasks[0], isCompleted: true, completedBy: 0, completedByName: "Coinquilino 1" };
+    const task1 = { ...baseTasks[1], isCompleted: true, completedBy: 1, completedByName: "Coinquilino 2" };
+    const task2 = { ...baseTasks[2], isCompleted: true, completedBy: 2, completedByName: "Coinquilino 3" };
+
+    let current = [task0, task1, task2];
+    expect(getWeeklyProgressBarSegments(current)).toEqual([true, true, true]);
+
+    // Undo task 0 (Cucina) -> 2 remaining -> segments 0 and 1 green, 2 gray
+    const undone0 = uncompleteCleaningTask(task0, [], roommates);
+    current = [undone0, task1, task2];
+    expect(getWeeklyProgressBarSegments(current)).toEqual([true, true, false]);
+
+    // Undo task 2 (Ingresso) -> 1 remaining -> segment 0 green, 1 and 2 gray
+    const undone2 = uncompleteCleaningTask(task2, [], roommates);
+    current = [undone0, task1, undone2];
+    expect(getWeeklyProgressBarSegments(current)).toEqual([true, false, false]);
+
+    // Undo task 1 (Bagno) -> 0 remaining -> all gray
+    const undone1 = uncompleteCleaningTask(task1, [], roommates);
+    current = [undone0, undone1, undone2];
+    expect(getWeeklyProgressBarSegments(current)).toEqual([false, false, false]);
+  });
+});
+
 
 
 

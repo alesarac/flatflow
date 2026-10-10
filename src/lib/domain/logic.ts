@@ -637,3 +637,20 @@ export function reconcileOpenTrash(
 
   return task;
 }
+
+/**
+ * Calcola lo stato dei 3 segmenti della barra di avanzamento settimanale.
+ * La barra si riempie rigorosamente da sinistra verso destra in base a QUANTE pulizie
+ * sono state completate (0, 1, 2, 3), indipendentemente da quale stanza (areaId) sia completata.
+ */
+export function getWeeklyProgressBarSegments(
+  cleanings: { isCompleted: boolean }[]
+): [boolean, boolean, boolean] {
+  const completedCount = cleanings.filter((c) => c.isCompleted).length;
+  return [
+    completedCount >= 1,
+    completedCount >= 2,
+    completedCount >= 3,
+  ];
+}
+

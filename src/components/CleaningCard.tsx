@@ -1,7 +1,17 @@
 "use client";
 
 import { AREAS, CleaningTask, Roommate } from "../lib/domain/types";
-import { UtensilsCrossed, Sparkles, DoorOpen, CheckCircle2, AlertTriangle, Loader2, Undo2, ArrowRight } from "lucide-react";
+import {
+  UtensilsCrossed,
+  Sparkles,
+  DoorOpen,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Hand,
+  Loader2,
+  Undo2,
+} from "lucide-react";
 
 interface CleaningCardProps {
   task: CleaningTask;
@@ -42,95 +52,130 @@ export function CleaningCard({
         : myRoommate && task.completedByName === myRoommate.name)
   );
 
+  // Stili e palette pastello specifici dello stato
+  const getCardStyle = () => {
+    if (task.isCompleted) {
+      return "bg-[#EAF9F1] border-[#C6EED8] dark:bg-emerald-950/20 dark:border-emerald-900/40";
+    }
+    if (isUnassigned) {
+      return "bg-[#FFFAE8] border-[#F5E9B7] dark:bg-amber-950/20 dark:border-amber-900/40";
+    }
+    return "bg-[#EFF6FF] border-[#D9E7F5] dark:bg-blue-950/20 dark:border-blue-900/40";
+  };
+
+  const getIconStyle = () => {
+    if (task.isCompleted) {
+      return {
+        box: "bg-emerald-100/70 border-emerald-200/60 dark:bg-emerald-950/50 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400",
+      };
+    }
+    if (isUnassigned) {
+      return {
+        box: "bg-amber-100/70 border-amber-200/60 dark:bg-amber-950/50 dark:border-amber-800/40 text-amber-600 dark:text-amber-400",
+      };
+    }
+    return {
+      box: "bg-blue-100/70 border-blue-200/60 dark:bg-blue-950/50 dark:border-blue-800/40 text-blue-600 dark:text-blue-400",
+    };
+  };
+
   const renderIcon = () => {
     switch (task.areaId) {
       case 0:
-        return <UtensilsCrossed className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
+        return <UtensilsCrossed className="w-5 h-5" />;
       case 1:
-        return <Sparkles className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
+        return <Sparkles className="w-5 h-5" />;
       case 2:
-        return <DoorOpen className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
+        return <DoorOpen className="w-5 h-5" />;
       default:
-        return <Sparkles className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
+        return <Sparkles className="w-5 h-5" />;
     }
   };
 
+  const iconStyle = getIconStyle();
   const hasBottomActions = !task.isCompleted && (isAssignedToMe || canClaim);
 
   return (
-    <div className="bg-white dark:bg-slate-850/90 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm transition-colors">
+    <div
+      className={`rounded-2xl border shadow-sm p-4 transition-colors ${getCardStyle()}`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50/70 border border-indigo-100/60 dark:bg-indigo-950/50 dark:border-indigo-900/40 flex items-center justify-center shrink-0">
+          <div
+            className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${iconStyle.box}`}
+          >
             {renderIcon()}
           </div>
           <div className="min-w-0">
             <h3 className="font-bold text-slate-900 dark:text-white text-base leading-tight truncate">
               {area.name}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-              {task.isCompleted ? (
-                <>
-                  Completata da <span className="font-medium text-slate-700 dark:text-slate-200">{task.completedByName || "Coinquilino"}</span>
-                </>
-              ) : task.assignedTo !== null ? (
-                <>
-                  Tocca a <span className={`font-semibold ${isAssignedToMe ? "text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-200"}`}>{assignedRoommate?.name || task.assignedToName || `Coinquilino ${task.assignedTo + 1}`}</span>
-                </>
-              ) : (
-                <span className="text-amber-600 dark:text-amber-400 font-medium text-[11px] sm:text-xs">Nessun incaricato disponibile</span>
-              )}
-            </p>
+            {task.isCompleted ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                Completata da{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {task.completedByName || "Coinquilino"}
+                </span>
+              </p>
+            ) : !isUnassigned && !isAssignedToMe ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                Tocca a{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {assignedRoommate?.name || task.assignedToName || `Coinquilino ${task.assignedTo! + 1}`}
+                </span>
+              </p>
+            ) : null}
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {task.isCompleted ? (
-            <>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 px-3 py-1 rounded-full shadow-sm">
-                <CheckCircle2 className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/60 px-3 py-1 rounded-full shadow-sm">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Fatta</span>
-              </div>
+              </span>
               {canUndo && onUncomplete && (
                 <button
                   type="button"
                   onClick={() => onUncomplete(task.id)}
                   disabled={isSubmitting}
-                  className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 font-semibold active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 text-xs shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  className="min-h-[44px] min-w-[44px] px-2 py-1 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium inline-flex items-center justify-center gap-1 transition-all active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg"
                   title="Annulla completamento"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Undo2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                    <Undo2 className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                   )}
                   <span>Annulla</span>
                 </button>
               )}
-            </>
-          ) : isAssignedToMe ? (
-            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 px-3 py-1 rounded-full shadow-sm">
-              Tocca a te!
-            </span>
+            </div>
           ) : isUnassigned ? (
-            <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Da coprire
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1 rounded-full shadow-sm">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Da coprire</span>
             </span>
-          ) : null}
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/60 px-3 py-1 rounded-full shadow-sm">
+              <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Da pulire</span>
+            </span>
+          )}
         </div>
       </div>
 
       {/* Azioni disponibili per attività non completate */}
       {hasBottomActions && (
-        <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+        <div className="mt-3">
           {isAssignedToMe ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onComplete(task.id)}
                 disabled={isSubmitting}
                 type="button"
-                className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl bg-[#365672] hover:bg-[#2c475e] active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -144,7 +189,7 @@ export function CleaningCard({
                 onClick={() => onDecline(task.id, myRoommateId!)}
                 disabled={isSubmitting}
                 type="button"
-                className="py-2.5 px-3 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 font-semibold text-xs transition-all active:scale-[0.98] shrink-0 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="min-h-[44px] py-2.5 px-4 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 font-semibold text-xs transition-all active:scale-[0.98] shrink-0 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
                 Non posso
               </button>
@@ -154,9 +199,13 @@ export function CleaningCard({
               onClick={() => onClaim(task.id, myRoommateId!)}
               disabled={isSubmitting}
               type="button"
-              className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-[#EDF2F7] hover:bg-[#E2E8F0] active:scale-[0.98] text-[#365672] dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
             >
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Hand className="w-4 h-4 text-[#365672] dark:text-slate-300" />
+              )}
               <span>Me ne occupo io</span>
             </button>
           ) : null}
@@ -165,3 +214,4 @@ export function CleaningCard({
     </div>
   );
 }
+
