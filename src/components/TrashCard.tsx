@@ -42,7 +42,7 @@ export function TrashCard({
 
   const hasBottomActions = openTask ? isAssignedToMe || canClaim : canReport;
 
-  // Palette e stili pastello conformi alle specifiche
+  // Palette e stili pastello conformi allo stato
   const getCardStyle = () => {
     if (openTask) {
       if (isUnassigned) {
@@ -53,14 +53,12 @@ export function TrashCard({
     return "bg-white border-slate-200/80 dark:bg-slate-850/90 dark:border-slate-800";
   };
 
-  const getIconStyle = () => {
+  const getIconColor = () => {
     if (openTask) {
-      if (isUnassigned) {
-        return "bg-amber-100/70 border-amber-200/60 text-amber-600 dark:bg-amber-950/50 dark:border-amber-800/40 dark:text-amber-400";
-      }
-      return "bg-rose-100/70 border-rose-200/60 text-rose-500 dark:bg-rose-900/30 dark:border-rose-800/40 dark:text-rose-400";
+      if (isUnassigned) return "text-amber-600 dark:text-amber-400";
+      return "text-rose-500 dark:text-rose-400";
     }
-    return "bg-slate-100 border-slate-200 text-slate-500 dark:bg-slate-800 dark:border-slate-700/60 dark:text-slate-400";
+    return "text-slate-500 dark:text-slate-400";
   };
 
   return (
@@ -68,48 +66,36 @@ export function TrashCard({
       className={`rounded-2xl border shadow-sm p-4 transition-colors ${getCardStyle()}`}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div
-            className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${getIconStyle()}`}
-          >
-            <Trash2 className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-bold text-slate-900 dark:text-white text-base leading-tight truncate">
-              Spazzatura
-            </h3>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Trash2 className={`w-4 h-4 shrink-0 ${getIconColor()}`} />
+          <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm leading-tight truncate">
             {openTask ? (
-              assignedRoommate && !isAssignedToMe ? (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                  Tocca a{" "}
-                  <span className="font-medium text-slate-700 dark:text-slate-300">
-                    {assignedRoommate.name}
-                  </span>
-                </p>
-              ) : null
+              assignedRoommate ? (
+                <>Tocca a {assignedRoommate.name}</>
+              ) : (
+                <>Nessun incaricato</>
+              )
             ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                Prossimo di turno: {nextInQueue?.name || "In attesa"}
-              </p>
+              <>Prossimo: {nextInQueue?.name || "In attesa"}</>
             )}
-          </div>
+          </span>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
           {openTask ? (
             isUnassigned ? (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1 rounded-full shadow-sm">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/60 px-2.5 py-0.5 rounded-full shadow-sm">
+                <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                 <span>Da coprire</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-100/80 dark:bg-rose-950/60 border border-rose-200/80 dark:border-rose-800/60 px-3 py-1 rounded-full shadow-sm">
-                <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-100/80 dark:bg-rose-950/60 border border-rose-200/80 dark:border-rose-800/60 px-2.5 py-0.5 rounded-full shadow-sm">
+                <AlertCircle className="w-3 h-3 text-rose-500" />
                 <span>Piena</span>
               </span>
             )
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-3 py-1 rounded-full">
+            <span className="inline-flex items-center text-[11px] font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2.5 py-0.5 rounded-full">
               <span>In ordine</span>
             </span>
           )}
@@ -118,7 +104,7 @@ export function TrashCard({
 
       {/* Azioni disponibili per la spazzatura */}
       {hasBottomActions && (
-        <div className="mt-3">
+        <div className="mt-3.5">
           {openTask ? (
             <div>
               {isAssignedToMe ? (
@@ -167,9 +153,9 @@ export function TrashCard({
               onClick={onReport}
               disabled={isSubmitting}
               type="button"
-              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:border-rose-900/40 dark:text-rose-300 font-semibold text-xs flex items-center justify-center gap-2 transition-colors active:scale-[0.98] disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400 font-semibold text-xs flex items-center justify-center gap-2 transition-colors active:scale-[0.98] disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
               <span>Segnala spazzatura piena</span>
             </button>
           ) : null}
@@ -178,4 +164,3 @@ export function TrashCard({
     </div>
   );
 }
-

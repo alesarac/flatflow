@@ -97,13 +97,10 @@ export default function HomePage() {
 
             {/* 2. Spazzatura */}
             <section className="space-y-2.5">
-              <div className="flex items-center justify-between px-0.5">
+              <div className="px-0.5">
                 <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
                   Spazzatura
                 </h2>
-                <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
-                  Gestione turni
-                </span>
               </div>
               <TrashCard
                 openTask={openTrashTask}

@@ -4,6 +4,7 @@ import {
   getWeekKey,
   parseWeekKey,
   formatWeekLabel,
+  formatHistoryWeekLabel,
   getRomeSundayEndIso,
   getRotationWeekIndex,
   getBaseAssignment,
@@ -47,6 +48,11 @@ describe("Europe/Rome Calendar & Week Helpers (P1-05)", () => {
 
     // Same month: 5 - 11 October 2026
     expect(formatWeekLabel("2026-10-05")).toBe("5 - 11 ott 2026");
+
+    // Formattazione settimanale storico: «5–11 ottobre», «28 settembre – 4 ottobre»
+    expect(formatHistoryWeekLabel("2026-10-05")).toBe("5–11 ottobre");
+    expect(formatHistoryWeekLabel("2026-09-28")).toBe("28 settembre – 4 ottobre");
+    expect(formatHistoryWeekLabel("2026-12-28")).toBe("28 dicembre 2026 – 3 gennaio 2027");
   });
 
   it("calculates Sunday 23:59:59 in Europe/Rome ensuring it never rolls into Monday (P2-02)", () => {

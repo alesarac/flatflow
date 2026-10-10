@@ -205,6 +205,27 @@ export function formatFullWeekLabel(weekKey: string): string {
 }
 
 /**
+ * Formatta l'etichetta settimanale per lo Storico all'interno del mese di appartenenza (es. "5–11 ottobre").
+ */
+export function formatHistoryWeekLabel(weekKey: string): string {
+  const { monday, sunday } = parseWeekKey(weekKey);
+  const monthsItFull = [
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"
+  ];
+  const mMonth = monthsItFull[monday.month - 1];
+  const sMonth = monthsItFull[sunday.month - 1];
+
+  if (monday.year !== sunday.year) {
+    return `${monday.day} ${mMonth} ${monday.year} – ${sunday.day} ${sMonth} ${sunday.year}`;
+  }
+  if (monday.month === sunday.month) {
+    return `${monday.day}–${sunday.day} ${mMonth}`;
+  }
+  return `${monday.day} ${mMonth} – ${sunday.day} ${sMonth}`;
+}
+
+/**
  * Calcola l'indice di rotazione da 0 a 2 per il ciclo fisso di 3 settimane.
  */
 export function getRotationWeekIndex(weekKey: string): number {
