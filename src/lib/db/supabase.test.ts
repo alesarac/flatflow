@@ -230,4 +230,120 @@ describe("SupabaseHouseRepository Conditional Cleaning Updates & Undo", () => {
   });
 });
 
+describe("SupabaseHouseRepository Shopping Items Non-Existent and Concurrent Deletions", () => {
+  it("toggleShoppingItem returns null when item does not exist or has already been deleted", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockQuery: any = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: [], // 0 rows updated
+        error: null,
+      }),
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    const result = await repo.toggleShoppingItem("non-existent-id", true, 0, "Coinquilino 1");
+    expect(result).toBeNull();
+    expect(mockQuery.update).toHaveBeenCalled();
+    expect(mockQuery.eq).toHaveBeenCalledWith("id", "non-existent-id");
+    expect(mockQuery.select).toHaveBeenCalled();
+  });
+
+  it("toggleShoppingItem returns updated item when row exists", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockRow = {
+      id: "shop-123",
+      name: "Pane",
+      is_bought: true,
+      added_by: 0,
+      added_by_name: "Coinquilino 1",
+      created_at: "2026-10-10T10:00:00.000Z",
+      bought_by: 1,
+      bought_by_name: "Coinquilino 2",
+      bought_at: "2026-10-10T12:00:00.000Z",
+    };
+
+    const mockQuery: any = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: [mockRow],
+        error: null,
+      }),
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    const result = await repo.toggleShoppingItem("shop-123", true, 1, "Coinquilino 2");
+    expect(result).toEqual({
+      id: "shop-123",
+      name: "Pane",
+      isBought: true,
+      addedBy: 0,
+      addedByName: "Coinquilino 1",
+      createdAt: "2026-10-10T10:00:00.000Z",
+      boughtBy: 1,
+      boughtByName: "Coinquilino 2",
+      boughtAt: "2026-10-10T12:00:00.000Z",
+    });
+  });
+
+  it("deleteShoppingItem returns false when item does not exist or has already been deleted", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockQuery: any = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: [], // 0 rows deleted
+        error: null,
+      }),
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    const deleted = await repo.deleteShoppingItem("non-existent-id");
+    expect(deleted).toBe(false);
+    expect(mockQuery.delete).toHaveBeenCalled();
+    expect(mockQuery.eq).toHaveBeenCalledWith("id", "non-existent-id");
+    expect(mockQuery.select).toHaveBeenCalledWith("id");
+  });
+
+  it("deleteShoppingItem returns true when row is deleted", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockQuery: any = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: "shop-123" }],
+        error: null,
+      }),
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    const deleted = await repo.deleteShoppingItem("shop-123");
+    expect(deleted).toBe(true);
+    expect(mockQuery.delete).toHaveBeenCalled();
+    expect(mockQuery.eq).toHaveBeenCalledWith("id", "shop-123");
+  });
+});
+
 

@@ -153,7 +153,9 @@ export default function HomePage() {
           </div>
         )}
 
-        {currentTab === "shopping" && <ShoppingView />}
+        {currentTab === "shopping" && (
+          <ShoppingView roommates={roommates} myRoommateId={myRoommateId} />
+        )}
 
         {currentTab === "history" && (
           <HistoryView onBack={() => setCurrentTab("cleanings")} />

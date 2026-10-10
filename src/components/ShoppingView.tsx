@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { ShoppingItem } from "../lib/domain/types";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { ShoppingItem, Roommate } from "../lib/domain/types";
 import { formatTimeAgo } from "../lib/domain/logic";
 import {
   Plus,
@@ -15,33 +15,62 @@ import {
   ShoppingBag,
 } from "lucide-react";
 
-export function ShoppingView() {
+interface ShoppingViewProps {
+  roommates?: Roommate[];
+  myRoommateId?: number | null;
+}
+
+export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}) {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   const [isAdding, setIsAdding] = useState(false);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   const [toBuyExpanded, setToBuyExpanded] = useState(true);
   const [boughtExpanded, setBoughtExpanded] = useState(true);
 
+  // Tracciamento di sequenza e serializzazione mutazioni per evitare sovrascritture asincrone fuori ordine
+  const latestVersionRef = useRef(0);
+  const activeMutationsCountRef = useRef(0);
+  const pendingItemIdsRef = useRef<Set<string>>(new Set());
+  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const currentRoommate = roommates?.find((r) => r.id === myRoommateId);
+  const currentRoommateName =
+    currentRoommate?.name ||
+    (myRoommateId !== null && myRoommateId !== undefined
+      ? `Coinquilino ${myRoommateId + 1}`
+      : "Coinquilino");
+
   const fetchItems = useCallback(async (isManual = false) => {
     if (isManual) setIsRefreshing(true);
-    setError(null);
+    const reqVersion = ++latestVersionRef.current;
+
     try {
       const res = await fetch("/api/house/shopping", { cache: "no-store" });
       if (!res.ok) {
         throw new Error("Impossibile caricare la lista della spesa.");
       }
       const data = await res.json();
+
+      // Scarta la risposta se nel frattempo è partita una richiesta più recente o se ci sono mutazioni locali attive
+      if (reqVersion < latestVersionRef.current) return;
+      if (activeMutationsCountRef.current > 0) return;
+
       setItems(data.items || []);
+      setError(null);
     } catch (err: any) {
-      setError(err.message || "Errore di connessione.");
+      if (reqVersion >= latestVersionRef.current) {
+        setError(err.message || "Errore di connessione.");
+      }
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      if (reqVersion >= latestVersionRef.current) {
+        setLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
@@ -75,33 +104,47 @@ export function ShoppingView() {
 
     setIsAdding(true);
     setError(null);
-    try {
-      const res = await fetch("/api/house/shopping", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add", name: trimmed }),
-      });
+    activeMutationsCountRef.current++;
+    const addVersion = ++latestVersionRef.current;
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Errore durante l'aggiunta.");
+    mutationQueueRef.current = mutationQueueRef.current.then(async () => {
+      try {
+        const res = await fetch("/api/house/shopping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add", name: trimmed }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Errore durante l'aggiunta.");
+        }
+
+        setNewItemName("");
+        if (addVersion >= latestVersionRef.current && activeMutationsCountRef.current === 1) {
+          setItems(data.items || []);
+        } else if (data.item) {
+          setItems((prev) => [data.item, ...prev.filter((i) => i.id !== data.item.id)]);
+        }
+      } catch (err: any) {
+        setError(err.message);
+        fetchItems(false);
+      } finally {
+        activeMutationsCountRef.current = Math.max(0, activeMutationsCountRef.current - 1);
+        setIsAdding(false);
       }
-
-      setNewItemName("");
-      setItems(data.items || []);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsAdding(false);
-    }
+    });
   };
 
-  const handleToggle = async (id: string, isBought: boolean) => {
-    if (actionLoadingId === id) return;
-    setActionLoadingId(id);
+  const handleToggle = (id: string, isBought: boolean) => {
+    if (pendingItemIdsRef.current.has(id)) return;
+
+    // Aggiungi a pending per evitare doppi click sullo stesso prodotto
+    pendingItemIdsRef.current.add(id);
+    setPendingItemIds(new Set(pendingItemIdsRef.current));
     setError(null);
 
-    // Aggiornamento ottimistico
+    // Aggiornamento ottimistico immediato
     setItems((prev) =>
       prev.map((item) =>
         item.id === id
@@ -109,57 +152,99 @@ export function ShoppingView() {
               ...item,
               isBought,
               boughtAt: isBought ? new Date().toISOString() : null,
+              boughtBy: isBought ? (myRoommateId ?? item.boughtBy) : null,
+              boughtByName: isBought ? (currentRoommateName || item.boughtByName) : null,
             }
           : item
       )
     );
 
-    try {
-      const res = await fetch("/api/house/shopping", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "toggle", id, isBought }),
-      });
+    activeMutationsCountRef.current++;
+    const toggleVersion = ++latestVersionRef.current;
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Errore durante l'aggiornamento.");
+    mutationQueueRef.current = mutationQueueRef.current.then(async () => {
+      try {
+        const res = await fetch("/api/house/shopping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "toggle", id, isBought }),
+        });
+
+        const data = await res.json();
+        if (res.status === 404) {
+          // Prodotto eliminato concorrentemente da un altro coinquilino
+          setItems((prev) => prev.filter((item) => item.id !== id));
+          setError("Questo prodotto non è più presente nella lista.");
+          fetchItems(false);
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || "Errore durante l'aggiornamento.");
+        }
+
+        if (toggleVersion >= latestVersionRef.current && activeMutationsCountRef.current === 1) {
+          setItems(data.items || []);
+        } else if (data.item) {
+          setItems((prev) =>
+            prev.map((item) => (item.id === data.item.id ? data.item : item))
+          );
+        }
+      } catch (err: any) {
+        setError(err.message);
+        fetchItems(false);
+      } finally {
+        activeMutationsCountRef.current = Math.max(0, activeMutationsCountRef.current - 1);
+        pendingItemIdsRef.current.delete(id);
+        setPendingItemIds(new Set(pendingItemIdsRef.current));
       }
-      setItems(data.items || []);
-    } catch (err: any) {
-      setError(err.message);
-      fetchItems(false);
-    } finally {
-      setActionLoadingId(null);
-    }
+    });
   };
 
-  const handleDelete = async (id: string) => {
-    if (actionLoadingId === id) return;
-    setActionLoadingId(id);
+  const handleDelete = (id: string) => {
+    if (pendingItemIdsRef.current.has(id)) return;
+
+    pendingItemIdsRef.current.add(id);
+    setPendingItemIds(new Set(pendingItemIdsRef.current));
     setError(null);
 
-    // Aggiornamento ottimistico
+    // Aggiornamento ottimistico immediato
     setItems((prev) => prev.filter((item) => item.id !== id));
 
-    try {
-      const res = await fetch("/api/house/shopping", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", id }),
-      });
+    activeMutationsCountRef.current++;
+    const deleteVersion = ++latestVersionRef.current;
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Errore durante l'eliminazione.");
+    mutationQueueRef.current = mutationQueueRef.current.then(async () => {
+      try {
+        const res = await fetch("/api/house/shopping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "delete", id }),
+        });
+
+        const data = await res.json();
+        if (res.status === 404) {
+          // Già rimosso altrove: lo stato ottimistico è già corretto
+          fetchItems(false);
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || "Errore durante l'eliminazione.");
+        }
+
+        if (deleteVersion >= latestVersionRef.current && activeMutationsCountRef.current === 1) {
+          setItems(data.items || []);
+        }
+      } catch (err: any) {
+        setError(err.message);
+        fetchItems(false);
+      } finally {
+        activeMutationsCountRef.current = Math.max(0, activeMutationsCountRef.current - 1);
+        pendingItemIdsRef.current.delete(id);
+        setPendingItemIds(new Set(pendingItemIdsRef.current));
       }
-      setItems(data.items || []);
-    } catch (err: any) {
-      setError(err.message);
-      fetchItems(false);
-    } finally {
-      setActionLoadingId(null);
-    }
+    });
   };
 
   const toBuyItems = items.filter((i) => !i.isBought);
@@ -181,7 +266,7 @@ export function ShoppingView() {
         <button
           type="button"
           onClick={() => fetchItems(true)}
-          disabled={loading || isRefreshing}
+          disabled={loading || isRefreshing || pendingItemIds.size > 0}
           className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-500 hover:text-slate-900 border border-slate-200/80 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200 active:scale-95 transition-all disabled:opacity-50 shadow-sm inline-flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           title="Aggiorna lista della spesa"
         >
@@ -190,8 +275,16 @@ export function ShoppingView() {
       </div>
 
       {error && (
-        <div className="p-3 text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl">
-          {error}
+        <div className="p-3 text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl flex items-center justify-between gap-2">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="p-1 text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 rounded-lg"
+            title="Chiudi avviso"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -274,47 +367,50 @@ export function ShoppingView() {
                     </p>
                   </div>
                 ) : (
-                  toBuyItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-850/90 shadow-sm p-3.5 transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        {/* Checkbox per completare */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggle(item.id, true)}
-                          disabled={actionLoadingId === item.id}
-                          className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95 transition-all"
-                          aria-label={`Segna ${item.name} come comprato`}
-                        >
-                          <div className="w-5 h-5 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-[#4355EC] dark:hover:border-indigo-400 transition-colors flex items-center justify-center" />
-                        </button>
+                  toBuyItems.map((item) => {
+                    const isPending = pendingItemIds.has(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-850/90 shadow-sm p-3.5 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          {/* Checkbox per completare */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggle(item.id, true)}
+                            disabled={isPending}
+                            className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95 transition-all disabled:opacity-50"
+                            aria-label={`Segna ${item.name} come comprato`}
+                          >
+                            <div className="w-5 h-5 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-[#4355EC] dark:hover:border-indigo-400 transition-colors flex items-center justify-center" />
+                          </button>
 
-                        {/* Nome e autore */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug break-words">
-                            {item.name}
-                          </h3>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-normal break-words">
-                            Aggiunto da {item.addedByName} · {formatTimeAgo(item.createdAt)}
-                          </p>
+                          {/* Nome e autore */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug break-words">
+                              {item.name}
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-normal break-words">
+                              Aggiunto da {item.addedByName} · {formatTimeAgo(item.createdAt)}
+                            </p>
+                          </div>
+
+                          {/* Pulsante elimina */}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={isPending}
+                            className="min-h-[44px] min-w-[44px] -mr-2 -my-2 flex items-center justify-center shrink-0 text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-rose-500 active:scale-95 transition-all disabled:opacity-50"
+                            title="Elimina prodotto"
+                            aria-label={`Elimina ${item.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
-
-                        {/* Pulsante elimina */}
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item.id)}
-                          disabled={actionLoadingId === item.id}
-                          className="min-h-[44px] min-w-[44px] -mr-2 -my-2 flex items-center justify-center shrink-0 text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-rose-500 active:scale-95 transition-all"
-                          title="Elimina prodotto"
-                          aria-label={`Elimina ${item.name}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -338,49 +434,52 @@ export function ShoppingView() {
 
               {boughtExpanded && (
                 <div className="space-y-2.5">
-                  {boughtItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-slate-50/60 dark:bg-slate-900/60 shadow-sm p-3.5 transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        {/* Checkbox per togliere la spunta */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggle(item.id, false)}
-                          disabled={actionLoadingId === item.id}
-                          className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95 transition-all"
-                          aria-label={`Riporta ${item.name} tra quelli da comprare`}
-                        >
-                          <div className="w-5 h-5 rounded-lg bg-[#4355EC] dark:bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  {boughtItems.map((item) => {
+                    const isPending = pendingItemIds.has(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-slate-50/60 dark:bg-slate-900/60 shadow-sm p-3.5 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          {/* Checkbox per togliere la spunta */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggle(item.id, false)}
+                            disabled={isPending}
+                            className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95 transition-all disabled:opacity-50"
+                            aria-label={`Riporta ${item.name} tra quelli da comprare`}
+                          >
+                            <div className="w-5 h-5 rounded-lg bg-[#4355EC] dark:bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            </div>
+                          </button>
+
+                          {/* Nome barrato e dettagli compratore */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium text-slate-400 dark:text-slate-500 text-base leading-snug line-through break-words">
+                              {item.name}
+                            </h3>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 leading-normal break-words">
+                              Comprato da {item.boughtByName || "Coinquilino"} · {formatTimeAgo(item.boughtAt || item.createdAt)}
+                            </p>
                           </div>
-                        </button>
 
-                        {/* Nome barrato e dettagli compratore */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-slate-400 dark:text-slate-500 text-base leading-snug line-through break-words">
-                            {item.name}
-                          </h3>
-                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 leading-normal break-words">
-                            Comprato da {item.boughtByName || "Coinquilino"} · {formatTimeAgo(item.boughtAt || item.createdAt)}
-                          </p>
+                          {/* Pulsante elimina */}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={isPending}
+                            className="min-h-[44px] min-w-[44px] -mr-2 -my-2 flex items-center justify-center shrink-0 text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-rose-500 active:scale-95 transition-all disabled:opacity-50"
+                            title="Elimina prodotto"
+                            aria-label={`Elimina ${item.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
-
-                        {/* Pulsante elimina */}
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(item.id)}
-                          disabled={actionLoadingId === item.id}
-                          className="min-h-[44px] min-w-[44px] -mr-2 -my-2 flex items-center justify-center shrink-0 text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-rose-500 active:scale-95 transition-all"
-                          title="Elimina prodotto"
-                          aria-label={`Elimina ${item.name}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

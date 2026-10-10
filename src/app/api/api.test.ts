@@ -1633,6 +1633,19 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
       });
       const delAgainRes = await postShoppingRoute(delAgainReq);
       expect(delAgainRes.status).toBe(404);
+      const delAgainJson = await delAgainRes.json();
+      expect(delAgainJson.error).toBe("Prodotto non trovato.");
+
+      // 7. Toggle on non-existent item returns 404
+      const toggleNonExistentReq = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: authHeadersFor(0),
+        body: JSON.stringify({ action: "toggle", id: itemId, isBought: true }),
+      });
+      const toggleNonExistentRes = await postShoppingRoute(toggleNonExistentReq);
+      expect(toggleNonExistentRes.status).toBe(404);
+      const toggleNonExistentJson = await toggleNonExistentRes.json();
+      expect(toggleNonExistentJson.error).toBe("Prodotto non trovato.");
     });
   });
 });

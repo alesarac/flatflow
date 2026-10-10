@@ -534,34 +534,40 @@ export class SupabaseHouseRepository implements IHouseRepository {
       .from("shopping_items")
       .update(updateData)
       .eq("id", id)
-      .select()
-      .single();
+      .select();
 
     if (error) {
       throw new Error(`Errore aggiornamento prodotto lista della spesa: ${error.message}`);
     }
 
-    if (!data) return null;
+    if (!data || data.length === 0) return null;
 
+    const row = data[0];
     return {
-      id: data.id,
-      name: data.name,
-      isBought: Boolean(data.is_bought),
-      addedBy: data.added_by,
-      addedByName: data.added_by_name,
-      createdAt: data.created_at,
-      boughtBy: data.bought_by !== null && data.bought_by !== undefined ? data.bought_by : null,
-      boughtByName: data.bought_by_name || null,
-      boughtAt: data.bought_at || null,
+      id: row.id,
+      name: row.name,
+      isBought: Boolean(row.is_bought),
+      addedBy: row.added_by,
+      addedByName: row.added_by_name,
+      createdAt: row.created_at,
+      boughtBy: row.bought_by !== null && row.bought_by !== undefined ? row.bought_by : null,
+      boughtByName: row.bought_by_name || null,
+      boughtAt: row.bought_at || null,
     };
   }
 
   async deleteShoppingItem(id: string): Promise<boolean> {
-    const { error } = await this.client.from("shopping_items").delete().eq("id", id);
+    const { data, error } = await this.client
+      .from("shopping_items")
+      .delete()
+      .eq("id", id)
+      .select("id");
+
     if (error) {
       throw new Error(`Errore eliminazione prodotto lista della spesa: ${error.message}`);
     }
-    return true;
+
+    return Boolean(data && data.length > 0);
   }
 
   async recordFailedLogin(ip: string): Promise<void> {
