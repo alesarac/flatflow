@@ -42,8 +42,8 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
-        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-        <span className="text-xs text-slate-400 font-medium">Caricamento Flatflow...</span>
+        <Loader2 className="w-8 h-8 text-indigo-600 dark:text-indigo-500 animate-spin" />
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Caricamento Flatflow...</span>
       </div>
     );
   }
@@ -84,7 +84,7 @@ export default function HomePage() {
       />
 
       {error && (
-        <div className="mx-4 mt-3 p-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-xs text-rose-300">
+        <div className="mx-4 mt-3 p-3 bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-300 rounded-2xl text-xs border">
           {error}
         </div>
       )}
@@ -106,7 +106,7 @@ export default function HomePage() {
             {/* 2. Spazzatura */}
             <section className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Gestione Spazzatura
                 </h2>
               </div>
@@ -127,10 +127,10 @@ export default function HomePage() {
             {/* 3. Pulizie della settimana */}
             <section className="space-y-3">
               <div className="flex items-center justify-between px-1">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Pulizie della Settimana
                 </h2>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
                   {currentWeek.cleanings.filter((c) => c.isCompleted).length} su 3 fatte
                 </span>
               </div>
