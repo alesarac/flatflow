@@ -1,8 +1,8 @@
 "use client";
 
-import { Home, Clock, Settings } from "lucide-react";
+import { Home, ShoppingBag, Settings } from "lucide-react";
 
-export type TabType = "home" | "history" | "settings";
+export type TabType = "cleanings" | "shopping" | "settings" | "history";
 
 interface NavigationProps {
   currentTab: TabType;
@@ -12,8 +12,8 @@ interface NavigationProps {
 
 export function Navigation({ currentTab, onSelectTab, pendingCount = 0 }: NavigationProps) {
   const tabs = [
-    { id: "home" as TabType, label: "Home", icon: Home, hasBadge: pendingCount > 0 },
-    { id: "history" as TabType, label: "Storico", icon: Clock, hasBadge: false },
+    { id: "cleanings" as TabType, label: "Pulizie", icon: Home, hasBadge: pendingCount > 0 },
+    { id: "shopping" as TabType, label: "Spesa", icon: ShoppingBag, hasBadge: false },
     { id: "settings" as TabType, label: "Impostazioni", icon: Settings, hasBadge: false },
   ];
 
@@ -22,7 +22,7 @@ export function Navigation({ currentTab, onSelectTab, pendingCount = 0 }: Naviga
       <div className="max-w-md mx-auto grid grid-cols-3 px-3 py-1.5 gap-2">
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = currentTab === tab.id;
+          const isActive = currentTab === tab.id || (tab.id === "cleanings" && currentTab === "history");
           return (
             <button
               key={tab.id}

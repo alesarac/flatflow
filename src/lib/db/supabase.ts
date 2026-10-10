@@ -5,6 +5,7 @@ import {
   DEFAULT_ROOMMATES,
   HistoryItem,
   Roommate,
+  ShoppingItem,
   TrashTask,
   WeekState,
 } from "../domain/types";
@@ -452,6 +453,115 @@ export class SupabaseHouseRepository implements IHouseRepository {
       totalCount,
       hasMore,
     };
+  }
+
+  async getShoppingItems(): Promise<ShoppingItem[]> {
+    const { data, error } = await this.client
+      .from("shopping_items")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      if (error.code === "42P01" || error.message?.includes("does not exist")) {
+        console.warn("Tabella shopping_items non ancora presente su Supabase.");
+        return [];
+      }
+      throw new Error(`Errore caricamento lista della spesa da Supabase: ${error.message}`);
+    }
+
+    if (!data) return [];
+
+    return data.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      isBought: Boolean(row.is_bought),
+      addedBy: row.added_by,
+      addedByName: row.added_by_name,
+      createdAt: row.created_at,
+      boughtBy: row.bought_by !== null && row.bought_by !== undefined ? row.bought_by : null,
+      boughtByName: row.bought_by_name || null,
+      boughtAt: row.bought_at || null,
+    }));
+  }
+
+  async addShoppingItem(name: string, addedBy: number, addedByName: string): Promise<ShoppingItem> {
+    const id = `shop_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const nowIso = new Date().toISOString();
+    const row = {
+      id,
+      name: name.trim(),
+      is_bought: false,
+      added_by: addedBy,
+      added_by_name: addedByName,
+      created_at: nowIso,
+      bought_by: null,
+      bought_by_name: null,
+      bought_at: null,
+    };
+
+    const { error } = await this.client.from("shopping_items").insert(row);
+    if (error) {
+      throw new Error(`Errore inserimento prodotto lista della spesa: ${error.message}`);
+    }
+
+    return {
+      id,
+      name: name.trim(),
+      isBought: false,
+      addedBy,
+      addedByName,
+      createdAt: nowIso,
+      boughtBy: null,
+      boughtByName: null,
+      boughtAt: null,
+    };
+  }
+
+  async toggleShoppingItem(
+    id: string,
+    isBought: boolean,
+    boughtBy: number | null,
+    boughtByName: string | null
+  ): Promise<ShoppingItem | null> {
+    const updateData: any = {
+      is_bought: isBought,
+      bought_by: isBought ? boughtBy : null,
+      bought_by_name: isBought ? boughtByName : null,
+      bought_at: isBought ? new Date().toISOString() : null,
+    };
+
+    const { data, error } = await this.client
+      .from("shopping_items")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Errore aggiornamento prodotto lista della spesa: ${error.message}`);
+    }
+
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      name: data.name,
+      isBought: Boolean(data.is_bought),
+      addedBy: data.added_by,
+      addedByName: data.added_by_name,
+      createdAt: data.created_at,
+      boughtBy: data.bought_by !== null && data.bought_by !== undefined ? data.bought_by : null,
+      boughtByName: data.bought_by_name || null,
+      boughtAt: data.bought_at || null,
+    };
+  }
+
+  async deleteShoppingItem(id: string): Promise<boolean> {
+    const { error } = await this.client.from("shopping_items").delete().eq("id", id);
+    if (error) {
+      throw new Error(`Errore eliminazione prodotto lista della spesa: ${error.message}`);
+    }
+    return true;
   }
 
   async recordFailedLogin(ip: string): Promise<void> {

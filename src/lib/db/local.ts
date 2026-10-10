@@ -6,6 +6,7 @@ import {
   DEFAULT_ROOMMATES,
   HistoryItem,
   Roommate,
+  ShoppingItem,
   TrashTask,
   WeekState,
 } from "../domain/types";
@@ -24,6 +25,7 @@ interface StoredData {
   trashQueue: number[];
   cleanings: Record<string, CleaningTask[]>; // weekKey -> CleaningTask[]
   trashTasks: TrashTask[];
+  shoppingItems?: ShoppingItem[];
   loginAttempts: { ip: string; timestamp: number }[];
 }
 
@@ -40,7 +42,11 @@ export class LocalHouseRepository implements IHouseRepository {
     try {
       if (fs.existsSync(this.filePath)) {
         const raw = fs.readFileSync(this.filePath, "utf-8");
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (!parsed.shoppingItems) {
+          parsed.shoppingItems = [];
+        }
+        return parsed;
       }
     } catch {
       // ignore read error e usa default
@@ -51,6 +57,7 @@ export class LocalHouseRepository implements IHouseRepository {
       trashQueue: [0, 1, 2],
       cleanings: {},
       trashTasks: [],
+      shoppingItems: [],
       loginAttempts: [],
     };
   }
@@ -274,6 +281,69 @@ export class LocalHouseRepository implements IHouseRepository {
       totalCount,
       hasMore,
     };
+  }
+
+  async getShoppingItems(): Promise<ShoppingItem[]> {
+    if (!this.data.shoppingItems) {
+      this.data.shoppingItems = [];
+    }
+    return [...this.data.shoppingItems].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  async addShoppingItem(name: string, addedBy: number, addedByName: string): Promise<ShoppingItem> {
+    if (!this.data.shoppingItems) {
+      this.data.shoppingItems = [];
+    }
+    const newItem: ShoppingItem = {
+      id: `shop_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: name.trim(),
+      isBought: false,
+      addedBy,
+      addedByName,
+      createdAt: new Date().toISOString(),
+      boughtBy: null,
+      boughtByName: null,
+      boughtAt: null,
+    };
+    this.data.shoppingItems.unshift(newItem);
+    this.saveData();
+    return newItem;
+  }
+
+  async toggleShoppingItem(
+    id: string,
+    isBought: boolean,
+    boughtBy: number | null,
+    boughtByName: string | null
+  ): Promise<ShoppingItem | null> {
+    if (!this.data.shoppingItems) {
+      this.data.shoppingItems = [];
+    }
+    const item = this.data.shoppingItems.find((i) => i.id === id);
+    if (!item) return null;
+
+    item.isBought = isBought;
+    item.boughtBy = isBought ? boughtBy : null;
+    item.boughtByName = isBought ? boughtByName : null;
+    item.boughtAt = isBought ? new Date().toISOString() : null;
+
+    this.saveData();
+    return { ...item };
+  }
+
+  async deleteShoppingItem(id: string): Promise<boolean> {
+    if (!this.data.shoppingItems) {
+      this.data.shoppingItems = [];
+    }
+    const initialLen = this.data.shoppingItems.length;
+    this.data.shoppingItems = this.data.shoppingItems.filter((i) => i.id !== id);
+    if (this.data.shoppingItems.length !== initialLen) {
+      this.saveData();
+      return true;
+    }
+    return false;
   }
 
   async recordFailedLogin(ip: string): Promise<void> {

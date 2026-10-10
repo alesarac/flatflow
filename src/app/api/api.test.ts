@@ -13,6 +13,7 @@ import { POST as cleaningsRoute } from "./house/cleanings/route";
 import { POST as trashRoute } from "./house/trash/route";
 import { POST as roommatesRoute } from "./house/roommates/route";
 import { GET as historyRoute } from "./house/history/route";
+import { GET as getShoppingRoute, POST as postShoppingRoute } from "./house/shopping/route";
 import { createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 import { getWeekKey } from "@/lib/domain/logic";
 
@@ -1511,5 +1512,127 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     expect(restoredTask.isCompleted).toBe(false);
     expect(restoredTask.completedBy).toBeNull();
     expect(restoredTask.assignedTo).toBe(0);
+  });
+
+  describe("Shared Shopping List API (/api/house/shopping)", () => {
+    function authHeadersFor(rId: number) {
+      const token = createSessionToken(rId);
+      return {
+        "Content-Type": "application/json",
+        cookie: `${SESSION_COOKIE_NAME}=${token}`,
+      };
+    }
+
+    it("rejects unauthenticated requests with 401", async () => {
+      const unauthGet = new Request("http://localhost/api/house/shopping");
+      const resGet = await getShoppingRoute(unauthGet);
+      expect(resGet.status).toBe(401);
+
+      const unauthPost = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add", name: "Latte" }),
+      });
+      const resPost = await postShoppingRoute(unauthPost);
+      expect(resPost.status).toBe(401);
+    });
+
+    it("validates input on adding products", async () => {
+      // Empty name
+      const emptyReq = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: authHeadersFor(0),
+        body: JSON.stringify({ action: "add", name: "   " }),
+      });
+      const emptyRes = await postShoppingRoute(emptyReq);
+      expect(emptyRes.status).toBe(400);
+
+      // Too long name (> 80 chars)
+      const longReq = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: authHeadersFor(0),
+        body: JSON.stringify({ action: "add", name: "a".repeat(81) }),
+      });
+      const longRes = await postShoppingRoute(longReq);
+      expect(longRes.status).toBe(400);
+    });
+
+    it("handles full lifecycle: add, toggle by another roommate, uncheck, and delete", async () => {
+      // 1. Roommate 0 ("Coinquilino 1") adds "Carta igienica"
+      const addReq = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: authHeadersFor(0),
+        body: JSON.stringify({ action: "add", name: "Carta igienica" }),
+      });
+      const addRes = await postShoppingRoute(addReq);
+      expect(addRes.status).toBe(200);
+      const addJson = await addRes.json();
+      expect(addJson.success).toBe(true);
+      expect(addJson.item.name).toBe("Carta igienica");
+      expect(addJson.item.addedBy).toBe(0);
+      expect(addJson.item.addedByName).toBe("Coinquilino 1");
+      expect(addJson.item.isBought).toBe(false);
+      const itemId = addJson.item.id;
+
+      // 2. Roommate 1 ("Coinquilino 2") fetches list and sees it
+      const getReq = new Request("http://localhost/api/house/shopping", {
+        headers: authHeadersFor(1),
+      });
+      const getRes = await getShoppingRoute(getReq);
+      expect(getRes.status).toBe(200);
+      const getJson = await getRes.json();
+      expect(getJson.items).toHaveLength(1);
+      expect(getJson.items[0].name).toBe("Carta igienica");
+
+      // 3. Roommate 1 toggles "Carta igienica" to bought
+      const toggleReq = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: authHeadersFor(1),
+        body: JSON.stringify({ action: "toggle", id: itemId, isBought: true }),
+      });
+      const toggleRes = await postShoppingRoute(toggleReq);
+      expect(toggleRes.status).toBe(200);
+      const toggleJson = await toggleRes.json();
+      expect(toggleJson.item.isBought).toBe(true);
+      expect(toggleJson.item.boughtBy).toBe(1);
+      expect(toggleJson.item.boughtByName).toBe("Coinquilino 2");
+      expect(toggleJson.item.boughtAt).toBeDefined();
+
+      // 4. Roommate 2 ("Coinquilino 3") unchecks it back to unbought
+      const uncheckReq = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: authHeadersFor(2),
+        body: JSON.stringify({ action: "toggle", id: itemId, isBought: false }),
+      });
+      const uncheckRes = await postShoppingRoute(uncheckReq);
+      expect(uncheckRes.status).toBe(200);
+      const uncheckJson = await uncheckRes.json();
+      expect(uncheckJson.item.isBought).toBe(false);
+      expect(uncheckJson.item.boughtBy).toBeNull();
+      expect(uncheckJson.item.boughtByName).toBeNull();
+      expect(uncheckJson.item.boughtAt).toBeNull();
+      // original author still Coinquilino 1
+      expect(uncheckJson.item.addedByName).toBe("Coinquilino 1");
+
+      // 5. Roommate 0 deletes the item
+      const delReq = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: authHeadersFor(0),
+        body: JSON.stringify({ action: "delete", id: itemId }),
+      });
+      const delRes = await postShoppingRoute(delReq);
+      expect(delRes.status).toBe(200);
+      const delJson = await delRes.json();
+      expect(delJson.items).toHaveLength(0);
+
+      // 6. Delete again returns 404
+      const delAgainReq = new Request("http://localhost/api/house/shopping", {
+        method: "POST",
+        headers: authHeadersFor(0),
+        body: JSON.stringify({ action: "delete", id: itemId }),
+      });
+      const delAgainRes = await postShoppingRoute(delAgainReq);
+      expect(delAgainRes.status).toBe(404);
+    });
   });
 });

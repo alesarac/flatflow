@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Loader2,
   ArrowDown,
+  ArrowLeft,
 } from "lucide-react";
 
 interface WeekGroup {
@@ -87,7 +88,11 @@ function groupHistoryByMonthAndWeek(items: HistoryItem[]): MonthGroup[] {
   return monthGroups;
 }
 
-export function HistoryView() {
+interface HistoryViewProps {
+  onBack?: () => void;
+}
+
+export function HistoryView({ onBack }: HistoryViewProps = {}) {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -184,13 +189,26 @@ export function HistoryView() {
     <div className="p-4 space-y-5">
       {/* Intestazione Storico */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
-            Storico attività
-          </h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-            Pulizie e spazzatura registrate
-          </p>
+        <div className="flex items-center gap-2.5">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800 shadow-sm inline-flex items-center justify-center active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              title="Torna alle pulizie"
+              aria-label="Torna alle pulizie"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}
+          <div>
+            <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
+              Storico attività
+            </h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+              Pulizie e spazzatura registrate
+            </p>
+          </div>
         </div>
         <button
           onClick={() => fetchHistory(0)}

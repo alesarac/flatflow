@@ -84,6 +84,22 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_time ON login_attempts(ip, attempt_time);
 
+-- 7. Tabella lista della spesa condivisa
+CREATE TABLE IF NOT EXISTS shopping_items (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  is_bought BOOLEAN NOT NULL DEFAULT FALSE,
+  added_by INT NOT NULL REFERENCES roommates(id) ON DELETE CASCADE,
+  added_by_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  bought_by INT REFERENCES roommates(id) ON DELETE SET NULL,
+  bought_by_name TEXT,
+  bought_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_shopping_items_is_bought ON shopping_items(is_bought);
+CREATE INDEX IF NOT EXISTS idx_shopping_items_created_at ON shopping_items(created_at DESC);
+
 -- ====================================================================
 -- SICUREZZA & RLS (Row Level Security)
 -- ====================================================================
@@ -98,6 +114,7 @@ ALTER TABLE weekly_absences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cleaning_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trash_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopping_items ENABLE ROW LEVEL SECURITY;
 
 -- Revoca esplicita dei permessi per i ruoli pubblici/anonimi
 REVOKE ALL ON house_config FROM anon, authenticated;
@@ -106,6 +123,7 @@ REVOKE ALL ON weekly_absences FROM anon, authenticated;
 REVOKE ALL ON cleaning_tasks FROM anon, authenticated;
 REVOKE ALL ON trash_tasks FROM anon, authenticated;
 REVOKE ALL ON login_attempts FROM anon, authenticated;
+REVOKE ALL ON shopping_items FROM anon, authenticated;
 
 -- Rimuovi eventuali policy permissive preesistenti
 DROP POLICY IF EXISTS "Allow all operations for service role and anon" ON house_config;
@@ -114,6 +132,7 @@ DROP POLICY IF EXISTS "Allow all operations for service role and anon" ON weekly
 DROP POLICY IF EXISTS "Allow all operations for service role and anon" ON cleaning_tasks;
 DROP POLICY IF EXISTS "Allow all operations for service role and anon" ON trash_tasks;
 DROP POLICY IF EXISTS "Allow all operations for service role and anon" ON login_attempts;
+DROP POLICY IF EXISTS "Allow all operations for service role and anon" ON shopping_items;
 
 -- Concedi accesso esclusivo al ruolo di servizio (service_role)
 GRANT ALL ON house_config TO service_role;
@@ -122,6 +141,7 @@ GRANT ALL ON weekly_absences TO service_role;
 GRANT ALL ON cleaning_tasks TO service_role;
 GRANT ALL ON trash_tasks TO service_role;
 GRANT ALL ON login_attempts TO service_role;
+GRANT ALL ON shopping_items TO service_role;
 
 -- Policy esplicite per service_role
 CREATE POLICY "Service role full access" ON house_config TO service_role USING (true) WITH CHECK (true);
@@ -130,6 +150,7 @@ CREATE POLICY "Service role full access" ON weekly_absences TO service_role USIN
 CREATE POLICY "Service role full access" ON cleaning_tasks TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access" ON trash_tasks TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access" ON login_attempts TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON shopping_items TO service_role USING (true) WITH CHECK (true);
 
 -- ====================================================================
 -- FUNZIONI ATOMICHE (RPC) PER TRANSAZIONI SENZA RACE CONDITIONS

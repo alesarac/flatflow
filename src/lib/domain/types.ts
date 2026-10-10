@@ -70,3 +70,15 @@ export interface HistoryItem {
   date: string; // ISO date string or formatted date
   weekKey?: string;
 }
+
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  isBought: boolean;
+  addedBy: number; // 0, 1, 2
+  addedByName: string;
+  createdAt: string; // ISO date string
+  boughtBy: number | null; // 0, 1, 2 or null
+  boughtByName: string | null;
+  boughtAt: string | null; // ISO date string or null
+}

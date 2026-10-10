@@ -112,4 +112,54 @@ describe("LocalHouseRepository", () => {
     await repo.resetRateLimit(ip);
     expect(await repo.isRateLimited(ip)).toBe(false);
   });
+
+  it("handles shopping list operations: add, toggle, uncheck, delete", async () => {
+    // 1. Initially empty
+    const initialItems = await repo.getShoppingItems();
+    expect(initialItems).toHaveLength(0);
+
+    // 2. Add item
+    const item1 = await repo.addShoppingItem("Carta igienica", 0, "Matteo");
+    expect(item1.id).toBeDefined();
+    expect(item1.name).toBe("Carta igienica");
+    expect(item1.isBought).toBe(false);
+    expect(item1.addedBy).toBe(0);
+    expect(item1.addedByName).toBe("Matteo");
+    expect(item1.boughtBy).toBeNull();
+
+    const item2 = await repo.addShoppingItem("Latte", 1, "Marilù");
+    expect(item2.name).toBe("Latte");
+
+    const items = await repo.getShoppingItems();
+    expect(items).toHaveLength(2);
+
+    // 3. Toggle to bought
+    const toggled = await repo.toggleShoppingItem(item1.id, true, 0, "Matteo");
+    expect(toggled).toBeDefined();
+    expect(toggled?.isBought).toBe(true);
+    expect(toggled?.boughtBy).toBe(0);
+    expect(toggled?.boughtByName).toBe("Matteo");
+    expect(toggled?.boughtAt).toBeDefined();
+
+    // 4. Toggle back to unbought (uncheck)
+    const uncheck = await repo.toggleShoppingItem(item1.id, false, null, null);
+    expect(uncheck?.isBought).toBe(false);
+    expect(uncheck?.boughtBy).toBeNull();
+    expect(uncheck?.boughtByName).toBeNull();
+    expect(uncheck?.boughtAt).toBeNull();
+    // original author preserved
+    expect(uncheck?.addedByName).toBe("Matteo");
+
+    // 5. Delete item
+    const deleted = await repo.deleteShoppingItem(item1.id);
+    expect(deleted).toBe(true);
+    const afterDelete = await repo.getShoppingItems();
+    expect(afterDelete).toHaveLength(1);
+    expect(afterDelete[0].id).toBe(item2.id);
+
+    // Delete non-existent
+    const deleteAgain = await repo.deleteShoppingItem("non-existent");
+    expect(deleteAgain).toBe(false);
+  });
 });
+

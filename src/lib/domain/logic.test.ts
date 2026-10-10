@@ -20,6 +20,7 @@ import {
   claimCleaningTask,
   claimTrashTask,
   getWeeklyProgressBarSegments,
+  formatTimeAgo,
 } from "./logic";
 import { DEFAULT_ROOMMATES } from "./types";
 
@@ -450,3 +451,32 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
     expect(getWeeklyProgressBarSegments(current)).toEqual([false, false, false]);
   });
 });
+
+describe("Shopping List Time Ago Helper (formatTimeAgo)", () => {
+  it("formats relative times cleanly in Italian according to mockups", () => {
+    const now = new Date("2026-10-10T12:00:00.000Z");
+
+    // Adesso (< 1 min)
+    const justNow = new Date("2026-10-10T11:59:45.000Z").toISOString();
+    expect(formatTimeAgo(justNow, now)).toBe("adesso");
+
+    // Minuti fa (< 60 min)
+    const tenMinAgo = new Date("2026-10-10T11:50:00.000Z").toISOString();
+    expect(formatTimeAgo(tenMinAgo, now)).toBe("10m fa");
+
+    // Ore fa (< 24 ore)
+    const twoHoursAgo = new Date("2026-10-10T10:00:00.000Z").toISOString();
+    expect(formatTimeAgo(twoHoursAgo, now)).toBe("2h fa");
+
+    const fiveHoursAgo = new Date("2026-10-10T07:00:00.000Z").toISOString();
+    expect(formatTimeAgo(fiveHoursAgo, now)).toBe("5h fa");
+
+    // Giorni fa (< 30 giorni)
+    const oneDayAgo = new Date("2026-10-09T12:00:00.000Z").toISOString();
+    expect(formatTimeAgo(oneDayAgo, now)).toBe("1g fa");
+
+    const twoDaysAgo = new Date("2026-10-08T12:00:00.000Z").toISOString();
+    expect(formatTimeAgo(twoDaysAgo, now)).toBe("2g fa");
+  });
+});
+

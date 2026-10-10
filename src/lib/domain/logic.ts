@@ -552,3 +552,34 @@ export function getWeeklyProgressBarSegments(
   ];
 }
 
+/**
+ * Formatta un timestamp ISO in formato compatto "tempo fa" (es. "2h fa", "5h fa", "1g fa", "adesso").
+ */
+export function formatTimeAgo(isoString: string, now: Date = new Date()): string {
+  if (!isoString) return "";
+  try {
+    const timestamp = new Date(isoString).getTime();
+    if (isNaN(timestamp)) return "";
+    const diffMs = now.getTime() - timestamp;
+    if (diffMs < 0) return "adesso";
+
+    const diffSecs = Math.floor(diffMs / 1000);
+    if (diffSecs < 60) return "adesso";
+
+    const diffMins = Math.floor(diffSecs / 60);
+    if (diffMins < 60) return `${diffMins}m fa`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h fa`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 30) return `${diffDays}g fa`;
+
+    const diffMonths = Math.floor(diffDays / 30);
+    return `${diffMonths}m fa`;
+  } catch {
+    return "";
+  }
+}
+
+
