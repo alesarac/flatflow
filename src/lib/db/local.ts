@@ -14,6 +14,7 @@ import {
   completeTrash,
   createWeekCleanings,
   formatWeekLabel,
+  getRomeSundayEndIso,
   getWeekKey,
   parseWeekKey,
   reconcileOpenTrash,
@@ -178,16 +179,30 @@ export class LocalHouseRepository implements IHouseRepository {
     return this.getWeekState(weekKey);
   }
 
-  async updateCleaningTask(task: CleaningTask): Promise<void> {
+  async updateCleaningTask(
+    task: CleaningTask,
+    condition?: { isCompleted?: boolean; assignedTo?: number | null }
+  ): Promise<boolean> {
     const weekCleanings = this.data.cleanings[task.weekKey];
-    if (weekCleanings) {
-      const idx = weekCleanings.findIndex((t) => t.id === task.id);
-      if (idx !== -1) {
-        weekCleanings[idx] = task;
-        this.saveData();
+    if (!weekCleanings) return false;
+    const idx = weekCleanings.findIndex((t) => t.id === task.id);
+    if (idx === -1) return false;
+
+    const current = weekCleanings[idx];
+    if (condition) {
+      if (condition.isCompleted !== undefined && current.isCompleted !== condition.isCompleted) {
+        return false;
+      }
+      if (condition.assignedTo !== undefined && current.assignedTo !== condition.assignedTo) {
+        return false;
       }
     }
+
+    weekCleanings[idx] = { ...task };
+    this.saveData();
+    return true;
   }
+
 
   async getOpenTrashTask(): Promise<TrashTask | null> {
     const openTask = this.data.trashTasks.find((t) => t.status === "open");
@@ -266,8 +281,8 @@ export class LocalHouseRepository implements IHouseRepository {
               ? this.data.roommates.find((r) => r.id === task.assignedTo)?.name || "Coinquilino"
               : "Nessun incaricato");
 
-          const { sunday } = parseWeekKey(weekKey);
-          const sundayIso = new Date(Date.UTC(sunday.year, sunday.month - 1, sunday.day, 23, 59, 59)).toISOString();
+          // P2-02: Calcola la data di incompletezza rigorosamente secondo Europe/Rome (domenica sera)
+          const sundayIso = getRomeSundayEndIso(weekKey);
 
           items.push({
             id: `clean-${task.id}`,

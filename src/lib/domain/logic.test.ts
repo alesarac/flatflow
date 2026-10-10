@@ -4,6 +4,7 @@ import {
   getWeekKey,
   parseWeekKey,
   formatWeekLabel,
+  getRomeSundayEndIso,
   getRotationWeekIndex,
   getBaseAssignment,
   findSubstitute,
@@ -45,7 +46,42 @@ describe("Europe/Rome Calendar & Week Helpers (P1-05)", () => {
     // Same month: 5 - 11 October 2026
     expect(formatWeekLabel("2026-10-05")).toBe("5 - 11 ott 2026");
   });
+
+  it("calculates Sunday 23:59:59 in Europe/Rome ensuring it never rolls into Monday (P2-02)", () => {
+    // 1. Summer daylight saving time (CEST, UTC+2)
+    // Week 2026-10-05: Sunday is 11 October 2026.
+    // 23:59:59 Rome = 21:59:59 UTC
+    const isoSummer = getRomeSundayEndIso("2026-10-05");
+    expect(isoSummer).toBe("2026-10-11T21:59:59.000Z");
+
+    const dateSummer = new Date(isoSummer);
+    const romeSummerFormatted = dateSummer.toLocaleString("it-IT", { timeZone: "Europe/Rome" });
+    expect(romeSummerFormatted).toContain("11/10/2026, 23:59:59");
+
+    const weekdaySummer = new Intl.DateTimeFormat("it-IT", {
+      timeZone: "Europe/Rome",
+      weekday: "long",
+    }).format(dateSummer);
+    expect(weekdaySummer.toLowerCase()).toBe("domenica");
+
+    // 2. Winter standard time (CET, UTC+1)
+    // Week 2026-12-07: Sunday is 13 December 2026.
+    // 23:59:59 Rome = 22:59:59 UTC
+    const isoWinter = getRomeSundayEndIso("2026-12-07");
+    expect(isoWinter).toBe("2026-12-13T22:59:59.000Z");
+
+    const dateWinter = new Date(isoWinter);
+    const romeWinterFormatted = dateWinter.toLocaleString("it-IT", { timeZone: "Europe/Rome" });
+    expect(romeWinterFormatted).toContain("13/12/2026, 23:59:59");
+
+    const weekdayWinter = new Intl.DateTimeFormat("it-IT", {
+      timeZone: "Europe/Rome",
+      weekday: "long",
+    }).format(dateWinter);
+    expect(weekdayWinter.toLowerCase()).toBe("domenica");
+  });
 });
+
 
 describe("Weekly Cleaning 3-Week Rotation & Name Snapshots", () => {
   it("follows the exact 3-week cyclical rotation and saves assignedToName snapshot", () => {
@@ -187,4 +223,21 @@ describe("Trash Management & Reconciliation on Absence (P1-01, P1-02, P1-04)", (
     // Roommate 2 should get it because 0 already declined!
     expect(reconciled?.assignedTo).toBe(2);
   });
+
+  it("reconciles open trash without assignee when entering a new week with no absences (P1-03)", () => {
+    const queue = [0, 1, 2];
+    // In week 1: all roommates were absent, trash was reported with assignedTo = null
+    const task = reportTrash(queue, [0, 1, 2], null);
+    expect(task.assignedTo).toBe(null);
+    expect(task.status).toBe("open");
+
+    // On Monday morning of week 2: absences are reset to []
+    // reconcileOpenTrash must assign to the first available in queue (Roommate 0)
+    const reconciled = reconcileOpenTrash(task, queue, []);
+    expect(reconciled?.assignedTo).toBe(0);
+    expect(reconciled?.status).toBe("open");
+    // Queue order must be strictly preserved
+    expect(queue).toEqual([0, 1, 2]);
+  });
 });
+

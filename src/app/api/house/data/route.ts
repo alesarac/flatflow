@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
-import { getWeekKey } from "@/lib/domain/logic";
+import { getWeekKey, reconcileOpenTrash } from "@/lib/domain/logic";
 
 export async function GET(req: Request) {
   const authenticated = await isRequestAuthenticated(req);
@@ -12,12 +12,26 @@ export async function GET(req: Request) {
   const repo = getRepository();
   const currentWeekKey = getWeekKey(new Date());
 
-  const [roommates, currentWeek, openTrashTask, trashQueue] = await Promise.all([
+  const [roommates, currentWeek, initialTrash, trashQueue] = await Promise.all([
     repo.getRoommates(),
     repo.getWeekState(currentWeekKey),
     repo.getOpenTrashTask(),
     repo.getTrashQueue(),
   ]);
+
+  let openTrashTask = initialTrash;
+  // P1-03: Riconcilia la segnalazione aperta con le disponibilità della nuova settimana
+  if (openTrashTask && openTrashTask.status === "open") {
+    const reconciled = reconcileOpenTrash(
+      openTrashTask,
+      trashQueue,
+      currentWeek.absentRoommates
+    );
+    if (reconciled && reconciled.assignedTo !== openTrashTask.assignedTo) {
+      await repo.updateTrashTask(reconciled);
+      openTrashTask = reconciled;
+    }
+  }
 
   return NextResponse.json({
     roommates,
@@ -26,3 +40,4 @@ export async function GET(req: Request) {
     trashQueue,
   });
 }
+

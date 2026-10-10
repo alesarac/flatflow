@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isRequestAuthenticated } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
-import { getWeekKey, reportTrash, declineTrash } from "@/lib/domain/logic";
+import { getWeekKey, reportTrash, declineTrash, reconcileOpenTrash } from "@/lib/domain/logic";
 
 export async function POST(req: Request) {
   const authenticated = await isRequestAuthenticated(req);
@@ -20,12 +20,22 @@ export async function POST(req: Request) {
   const repo = getRepository();
   const currentWeekKey = getWeekKey(new Date());
 
-  const [queue, openTask, currentWeek, roommates] = await Promise.all([
+  const [queue, rawOpenTask, currentWeek, roommates] = await Promise.all([
     repo.getTrashQueue(),
     repo.getOpenTrashTask(),
     repo.getWeekState(currentWeekKey),
     repo.getRoommates(),
   ]);
+
+  let openTask = rawOpenTask;
+  if (openTask && openTask.status === "open") {
+    const reconciled = reconcileOpenTrash(openTask, queue, currentWeek.absentRoommates);
+    if (reconciled && reconciled.assignedTo !== openTask.assignedTo) {
+      await repo.updateTrashTask(reconciled);
+      openTask = reconciled;
+    }
+  }
+
 
   if (action === "report") {
     if (openTask && openTask.status === "open") {

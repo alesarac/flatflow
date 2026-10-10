@@ -114,6 +114,51 @@ export function parseWeekKey(weekKey: string): {
 }
 
 /**
+ * Calcola l'ISO string corrispondente alla fine della domenica (23:59:59) nel fuso orario Europe/Rome.
+ * Garantisce che nelle conversioni orarie italiane la data ricada rigorosamente di domenica sera e non di lunedì mattina.
+ */
+export function getRomeSundayEndIso(weekKey: string): string {
+  const { sunday } = parseWeekKey(weekKey);
+  const civilUtc = Date.UTC(sunday.year, sunday.month - 1, sunday.day, 23, 59, 59);
+
+  const probe = new Date(civilUtc - 2 * 3600 * 1000);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Rome",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(probe);
+  const partMap: Record<string, number> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") {
+      partMap[p.type] = parseInt(p.value, 10);
+    }
+  }
+
+  const hour = partMap.hour === 24 ? 0 : (partMap.hour ?? 0);
+  const probeInRomeUtc = Date.UTC(
+    partMap.year ?? sunday.year,
+    (partMap.month ?? sunday.month) - 1,
+    partMap.day ?? sunday.day,
+    hour,
+    partMap.minute ?? 0,
+    partMap.second ?? 0
+  );
+
+  const offsetMs = probeInRomeUtc - probe.getTime();
+  const exactUtcMs = civilUtc - offsetMs;
+
+  return new Date(exactUtcMs).toISOString();
+}
+
+
+/**
  * Formatta l'etichetta della settimana in lingua italiana (es. "5 - 11 ott 2026" o "28 set - 4 ott 2026").
  */
 export function formatWeekLabel(weekKey: string): string {

@@ -9,6 +9,7 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
 ## 🎯 Caratteristiche principali
 
 ### 🧹 Pulizie settimanali
+
 - La casa è organizzata in tre aree:
   1. **Cucina**
   2. **Bagno**
@@ -18,12 +19,14 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
 - Nessun recupero o penalità per le attività non svolte entro domenica: rimangono semplicemente registrate come incomplete nello storico e la settimana successiva prosegue regolarmente con la nuova rotazione.
 
 ### ✈️ Assenze e impossibilità di pulire
+
 - **«Sono assente questa settimana»**: il coinquilino non riceve incarichi per quella settimana.
 - **«Non posso pulire»**: rinuncia a una specifica pulizia.
 - Il sistema riassegna automaticamente il compito al primo coinquilino disponibile seguendo l'ordine fisso (0 → 1 → 2 → 0), saltando gli assenti e chi ha già rifiutato quell'attività. Se nessuno è disponibile, l'attività rimane senza incaricato.
 - La revoca di un'assenza prima della fine della settimana non modifica le assegnazioni già trasferite.
 
 ### 🗑️ Gestione equa della spazzatura
+
 - Chiunque può premere **«Segnala spazzatura piena»** (può esserci una sola segnalazione aperta alla volta).
 - Assegnazione automatica tramite una **coda equa a 3 posizioni**:
   - Il primo disponibile in coda riceve il compito.
@@ -33,12 +36,14 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
   - Un incarico di spazzatura aperto non scade al cambio di settimana.
 
 ### 📜 Storico essenziale
+
 - Elenco cronologico chiaro e sintetico di:
   - Pulizie completate con data, ora e autore.
   - Pulizie passate rimaste incomplete con settimana di riferimento.
   - Conferimenti della spazzatura registrati.
 
 ### 🔒 Accesso condiviso e Privacy
+
 - **Nessuna registrazione, nessun account personale, nessun amministratore.**
 - Un **unico codice segreto condiviso per la casa**, verificato rigorosamente sul server e protetto da rate-limiting su tentativi ripetuti.
 - Memorizzazione sicura della sessione (cookie HTTP-only con durata annuale) per non richiedere continuamente il codice.
@@ -60,35 +65,36 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
 ## 🚀 Avvio Rapido in Locale
 
 1. **Clona il repository:**
+
    ```bash
    git clone https://github.com/tuo-username/flatflow.git
    cd flatflow
    ```
-
 2. **Installa le dipendenze:**
+
    ```bash
    npm install
    ```
-
 3. **Crea il file delle variabili d'ambiente:**
    Copia `.env.example` in `.env.local`:
+
    ```bash
    cp .env.example .env.local
    ```
    *(I valori predefiniti consentono di avviare l'app immediatamente in locale utilizzando il database locale su file).*
-
 4. **Avvia il server di sviluppo:**
+
    ```bash
    npm run dev
    ```
    L'app sarà disponibile su [http://localhost:3000](http://localhost:3000). Il codice predefinito della casa è `flatflow2026`.
-
 5. **Esegui i test automatizzati:**
+
    ```bash
    npm test
    ```
-
 6. **Compila la build di produzione:**
+
    ```bash
    npm run build
    ```
@@ -97,6 +103,7 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
 
 ## 📖 Documentazione e Pubblicazione
 
-Per le istruzioni dettagliate passo-passo su come creare il database Supabase, pubblicare l'app gratuitamente su Vercel e installarla su smartphone (iOS e Android), consulta:
+Per le istruzioni dettagliate passo-passo su come creare il database Supabase, configurare le variabili d'ambiente, pubblicare l'app gratuitamente su Vercel e installarla su smartphone (iOS e Android), consulta:
 
 👉 **[GUIDA_CONFIGURAZIONE.md](./GUIDA_CONFIGURAZIONE.md)**
+

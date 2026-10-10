@@ -12,6 +12,7 @@ import {
   applyRoommateAbsence,
   createWeekCleanings,
   formatWeekLabel,
+  getRomeSundayEndIso,
   getWeekKey,
   parseWeekKey,
   reconcileOpenTrash,
@@ -230,7 +231,26 @@ export class SupabaseHouseRepository implements IHouseRepository {
       );
 
       for (const task of updatedCleanings) {
-        await this.updateCleaningTask(task);
+        // P1-02: Aggiornamento condizionale: non sovrascrivere compiti completati nel frattempo
+        const originalTask = weekState.cleanings.find((t) => t.id === task.id);
+        if (
+          originalTask &&
+          !originalTask.isCompleted &&
+          (originalTask.assignedTo !== task.assignedTo || originalTask.assignedToName !== task.assignedToName)
+        ) {
+          const { error: updErr } = await this.client
+            .from("cleaning_tasks")
+            .update({
+              assigned_to: task.assignedTo,
+              assigned_to_name: task.assignedToName,
+            })
+            .eq("id", task.id)
+            .eq("is_completed", false);
+
+          if (updErr) {
+            throw new Error(`Errore aggiornamento compito per assenza: ${updErr.message}`);
+          }
+        }
       }
 
       // P1-04: Riconciliazione immediata della spazzatura aperta se assegnata all'assente
@@ -261,7 +281,26 @@ export class SupabaseHouseRepository implements IHouseRepository {
       );
 
       for (const task of updatedCleanings) {
-        await this.updateCleaningTask(task);
+        // P1-02: Aggiornamento condizionale: non sovrascrivere compiti completati nel frattempo
+        const originalTask = weekState.cleanings.find((t) => t.id === task.id);
+        if (
+          originalTask &&
+          !originalTask.isCompleted &&
+          (originalTask.assignedTo !== task.assignedTo || originalTask.assignedToName !== task.assignedToName)
+        ) {
+          const { error: updErr } = await this.client
+            .from("cleaning_tasks")
+            .update({
+              assigned_to: task.assignedTo,
+              assigned_to_name: task.assignedToName,
+            })
+            .eq("id", task.id)
+            .eq("is_completed", false);
+
+          if (updErr) {
+            throw new Error(`Errore aggiornamento compito per revoca assenza: ${updErr.message}`);
+          }
+        }
       }
 
       // P1-04: Riconciliazione spazzatura aperta se era rimasta senza incaricato
@@ -277,8 +316,11 @@ export class SupabaseHouseRepository implements IHouseRepository {
     return this.getWeekState(weekKey);
   }
 
-  async updateCleaningTask(task: CleaningTask): Promise<void> {
-    const { error } = await this.client
+  async updateCleaningTask(
+    task: CleaningTask,
+    condition?: { isCompleted?: boolean; assignedTo?: number | null }
+  ): Promise<boolean> {
+    let query = this.client
       .from("cleaning_tasks")
       .update({
         assigned_to: task.assignedTo,
@@ -290,10 +332,28 @@ export class SupabaseHouseRepository implements IHouseRepository {
       })
       .eq("id", task.id);
 
+    if (condition) {
+      if (condition.isCompleted !== undefined) {
+        query = query.eq("is_completed", condition.isCompleted);
+      }
+      if (condition.assignedTo !== undefined) {
+        if (condition.assignedTo === null) {
+          query = query.is("assigned_to", null);
+        } else {
+          query = query.eq("assigned_to", condition.assignedTo);
+        }
+      }
+    }
+
+    const { data, error } = await query.select();
+
     if (error) {
       throw new Error(`Errore aggiornamento compito pulizia: ${error.message}`);
     }
+
+    return (data && data.length > 0) ? true : false;
   }
+
 
   async getOpenTrashTask(): Promise<TrashTask | null> {
     const { data, error } = await this.client
@@ -362,47 +422,22 @@ export class SupabaseHouseRepository implements IHouseRepository {
     roommateId: number,
     roommateName: string
   ): Promise<{ task: TrashTask; queue: number[] }> {
-    // Prova prima la funzione atomica PostgreSQL RPC se definita
+    // Esecuzione atomica esclusiva tramite funzione PostgreSQL RPC
     const { data: rpcData, error: rpcError } = await this.client.rpc("rpc_complete_trash", {
       p_task_id: taskId,
       p_roommate_id: roommateId,
       p_completed_by_name: roommateName,
     });
 
-    if (!rpcError && rpcData?.success) {
-      const queue = rpcData.new_queue as number[];
-      const completedTask: TrashTask = {
-        id: taskId,
-        status: "completed",
-        assignedTo: roommateId,
-        declinedBy: [],
-        reportedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        completedByName: roommateName,
-      };
-      return { task: completedTask, queue };
+    if (rpcError) {
+      throw new Error(`Errore completamento atomico spazzatura: ${rpcError.message}`);
     }
 
-    // Fallback controllato se la funzione RPC non è ancora registrata nel DB
-    const currentQueue = await this.getTrashQueue();
-    const { error: taskErr } = await this.client
-      .from("trash_tasks")
-      .update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        completed_by_name: roommateName,
-      })
-      .eq("id", taskId)
-      .eq("status", "open");
-
-    if (taskErr) {
-      throw new Error(`Errore completamento spazzatura: ${taskErr.message}`);
+    if (!rpcData || !rpcData.success) {
+      throw new Error("Transazione atomica completamento spazzatura fallita.");
     }
 
-    const remaining = currentQueue.filter((id) => id !== roommateId);
-    const updatedQueue = [...remaining, roommateId];
-    await this.updateTrashQueue(updatedQueue);
-
+    const queue = rpcData.new_queue as number[];
     const completedTask: TrashTask = {
       id: taskId,
       status: "completed",
@@ -412,9 +447,9 @@ export class SupabaseHouseRepository implements IHouseRepository {
       completedAt: new Date().toISOString(),
       completedByName: roommateName,
     };
-
-    return { task: completedTask, queue: updatedQueue };
+    return { task: completedTask, queue };
   }
+
 
   async getHistory(limit: number = 30, offset: number = 0): Promise<HistoryResult> {
     const currentWeekKey = getWeekKey(new Date());
@@ -470,8 +505,8 @@ export class SupabaseHouseRepository implements IHouseRepository {
           t.assigned_to_name ||
           (t.assigned_to !== null ? roommates.find((r) => r.id === t.assigned_to)?.name || "Coinquilino" : "Nessun incaricato");
 
-        const { sunday } = parseWeekKey(t.week_key);
-        const sundayIso = new Date(Date.UTC(sunday.year, sunday.month - 1, sunday.day, 23, 59, 59)).toISOString();
+        // P2-02: Calcola la data di incompletezza rigorosamente secondo Europe/Rome (domenica sera)
+        const sundayIso = getRomeSundayEndIso(t.week_key);
 
         items.push({
           id: `clean-${t.id}`,

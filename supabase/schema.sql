@@ -143,6 +143,7 @@ CREATE OR REPLACE FUNCTION rpc_complete_trash(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_task RECORD;
@@ -207,3 +208,10 @@ BEGIN
   );
 END;
 $$;
+
+-- Revoca esecuzione da ruoli non autorizzati e concedi solo a service_role
+REVOKE ALL ON FUNCTION rpc_complete_trash(TEXT, INT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION rpc_complete_trash(TEXT, INT, TEXT) FROM anon;
+REVOKE ALL ON FUNCTION rpc_complete_trash(TEXT, INT, TEXT) FROM authenticated;
+GRANT EXECUTE ON FUNCTION rpc_complete_trash(TEXT, INT, TEXT) TO service_role;
+

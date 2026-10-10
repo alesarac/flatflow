@@ -223,4 +223,121 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(data.items).toBeDefined();
     expect(Array.isArray(data.items)).toBe(true);
   });
+
+  it("prevents lost updates and handles concurrent completion, decline, and absence (P1-02)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[0];
+    const assignedId = task.assignedTo!;
+
+    // 1. Primo completamento riesce
+    const completeReq1 = new Request("http://localhost/api/house/cleanings", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: "complete",
+        weekKey: currentWeekKey,
+        taskId: task.id,
+        roommateId: assignedId,
+      }),
+    });
+    const res1 = await cleaningsRoute(completeReq1);
+    expect(res1.status).toBe(200);
+
+    // 2. Secondo completamento simultaneo/ripetuto riceve 409 Conflict
+    const completeReq2 = new Request("http://localhost/api/house/cleanings", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: "complete",
+        weekKey: currentWeekKey,
+        taskId: task.id,
+        roommateId: assignedId,
+      }),
+    });
+    const res2 = await cleaningsRoute(completeReq2);
+    expect(res2.status).toBe(409);
+
+    // 3. Tentativo di rinuncia su compito già completato riceve 409 Conflict
+    const declineReq = new Request("http://localhost/api/house/cleanings", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: "decline",
+        weekKey: currentWeekKey,
+        taskId: task.id,
+        roommateId: assignedId,
+      }),
+    });
+    const resDecline = await cleaningsRoute(declineReq);
+    expect(resDecline.status).toBe(409);
+
+    // 4. Segnalazione successiva di assenza per l'assegnatario NON sovrascrive né annulla il compito già completato
+    const absenceReq = new Request("http://localhost/api/house/cleanings", {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: "set_absence",
+        weekKey: currentWeekKey,
+        roommateId: assignedId,
+        isAbsent: true,
+      }),
+    });
+    const resAbsence = await cleaningsRoute(absenceReq);
+    expect(resAbsence.status).toBe(200);
+
+    const updatedWeek = await repo.getWeekState(currentWeekKey);
+    const completedTask = updatedWeek.cleanings.find((t) => t.id === task.id);
+    expect(completedTask?.isCompleted).toBe(true);
+    expect(completedTask?.assignedTo).toBe(assignedId);
+    expect(completedTask?.completedByName).toBeDefined();
+  });
+
+  it("automatically reconciles unassigned open trash on week change via GET /api/house/data (P1-03)", async () => {
+    const token = createSessionToken();
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+    };
+
+    // Crea un compito di spazzatura aperto senza assegnatario (come se lasciato dalla settimana scorsa con tutti assenti)
+    const unassignedTrash = {
+      id: "trash-unassigned-week1",
+      status: "open" as const,
+      assignedTo: null,
+      declinedBy: [],
+      reportedAt: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
+      completedAt: null,
+      completedByName: null,
+    };
+    await repo.createTrashTask(unassignedTrash);
+
+    const openBefore = await repo.getOpenTrashTask();
+    expect(openBefore?.assignedTo).toBeNull();
+
+    // Quando i coinquilini aprono l'app nella nuova settimana, GET /api/house/data riconcilia il compito
+    const dataReq = new Request("http://localhost/api/house/data", {
+      headers: authHeaders,
+    });
+    const dataRes = await houseDataRoute(dataReq);
+    expect(dataRes.status).toBe(200);
+    const data = await dataRes.json();
+
+    // Il compito è stato assegnato automaticamente al primo disponibile nella coda
+    expect(data.openTrashTask).toBeDefined();
+    expect(data.openTrashTask.assignedTo).toBe(0);
+    expect(data.openTrashTask.status).toBe("open");
+
+    // Anche il repository è stato aggiornato in modo persistente
+    const openAfter = await repo.getOpenTrashTask();
+    expect(openAfter?.assignedTo).toBe(0);
+    expect(openAfter?.status).toBe("open");
+  });
 });
+

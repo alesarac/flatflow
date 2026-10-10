@@ -71,13 +71,27 @@ export async function POST(req: Request) {
     }
 
     // Snapshot del nome ricavato direttamente dal database (non dal payload del client)
-    task.isCompleted = true;
-    task.completedAt = new Date().toISOString();
-    task.completedByName = roommate.name;
-    task.assignedTo = roommateId;
-    task.assignedToName = roommate.name;
+    const taskToSave = {
+      ...task,
+      isCompleted: true,
+      completedAt: new Date().toISOString(),
+      completedByName: roommate.name,
+      assignedTo: roommateId,
+      assignedToName: roommate.name,
+    };
 
-    await repo.updateCleaningTask(task);
+    // P1-02: Aggiornamento condizionale atomico: verifica che non sia già completato
+    const updated = await repo.updateCleaningTask(taskToSave, {
+      isCompleted: false,
+      ...(task.assignedTo !== null ? { assignedTo: roommateId } : {}),
+    });
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "L'attività è già stata completata o modificata da un'altra operazione." },
+        { status: 409 }
+      );
+    }
 
     const updatedWeek = await repo.getWeekState(weekKey);
     return NextResponse.json({ success: true, week: updatedWeek });
@@ -111,11 +125,24 @@ export async function POST(req: Request) {
       roommateId,
       roommates
     );
-    await repo.updateCleaningTask(updatedTask);
+
+    // P1-02: Aggiornamento condizionale atomico: verifica che sia ancora assegnato e non completato
+    const updated = await repo.updateCleaningTask(updatedTask, {
+      isCompleted: false,
+      assignedTo: roommateId,
+    });
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "L'attività è già stata modificata o completata da un'altra operazione." },
+        { status: 409 }
+      );
+    }
 
     const updatedWeek = await repo.getWeekState(weekKey);
     return NextResponse.json({ success: true, week: updatedWeek });
   }
+
 
   if (action === "set_absence") {
     if (typeof roommateId !== "number" || typeof isAbsent !== "boolean") {
