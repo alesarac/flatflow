@@ -26,9 +26,21 @@ body {
 
 /* Safe area padding utilities for iOS notch & home bar */
 .pb-safe {
+  padding-bottom: 1rem;
+  padding-bottom: calc(1rem + constant(safe-area-inset-bottom));
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
 .pt-safe {
+  padding-top: 0.75rem;
+  padding-top: calc(0.75rem + constant(safe-area-inset-top));
   padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
 }
+
+/* Clearance for scrollable content above fixed bottom navigation with iPhone safe area */
+.pb-nav-safe {
+  padding-bottom: 7rem;
+  padding-bottom: calc(7rem + constant(safe-area-inset-bottom));
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+}
+

@@ -91,7 +91,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <main className="flex-1 max-w-md mx-auto w-full pb-28 pb-safe">
+      <main className="flex-1 max-w-md mx-auto w-full pb-nav-safe">
         {currentTab === "home" && currentWeek && (
           <div className="p-4 space-y-5">
             {/* 1. Settimana corrente e progresso pulizie */}
