@@ -7,6 +7,8 @@ export interface HouseDataSyncCallbacks {
   onError: (error: string | null) => void;
   onAuthenticatedChange: (auth: boolean | null) => void;
   onSubmittingTaskIdChange: (id: string | null) => void;
+  onSubmittingCleaningIdsChange?: (ids: Set<string>) => void;
+  onIsTrashSubmittingChange?: (submitting: boolean) => void;
   onIsSubmittingChange: (submitting: boolean) => void;
 }
 
@@ -56,12 +58,45 @@ export class HouseDataSyncController {
     return this.activeMutationsCount;
   }
 
+  isCleaningSubmitting(taskId: string): boolean {
+    return this.inFlightCleaningIds.has(taskId);
+  }
+
+  isTrashSubmitting(): boolean {
+    return this.inFlightTrash;
+  }
+
+  private notifySubmittingCleaningIds() {
+    this.callbacks.onSubmittingCleaningIdsChange?.(new Set(this.inFlightCleaningIds));
+    const latestId =
+      this.inFlightCleaningIds.size > 0
+        ? Array.from(this.inFlightCleaningIds)[this.inFlightCleaningIds.size - 1]
+        : null;
+    this.callbacks.onSubmittingTaskIdChange(latestId);
+  }
+
+  invalidatePendingRequests(): void {
+    this.lastCommittedVersion = ++this.version;
+    this.latestFetchVersion = this.version;
+    this.inFlightCleaningIds.clear();
+    this.inFlightTrash = false;
+    this.activeMutationsCount = 0;
+    this.needsReconciliation = false;
+    this.notifySubmittingCleaningIds();
+    this.callbacks.onIsTrashSubmittingChange?.(false);
+    this.callbacks.onIsSubmittingChange(false);
+  }
+
+  resetSession(): void {
+    this.invalidatePendingRequests();
+  }
+
   private updateData(newData: HouseData | null) {
     this.data = newData;
     this.callbacks.onDataChange(newData);
   }
 
-  async fetchData(): Promise<void> {
+  async fetchData(isManual = false): Promise<void> {
     const reqVersion = ++this.version;
     this.latestFetchVersion = reqVersion;
 
@@ -100,7 +135,11 @@ export class HouseDataSyncController {
       this.needsReconciliation = false;
       this.updateData(json);
       this.callbacks.onAuthenticatedChange(true);
-      this.callbacks.onError(null);
+      // Azzeriamo l'avviso di errore solo nei caricamenti manuali per preservare
+      // gli errori attivi di mutazione durante la riconciliazione automatica
+      if (isManual) {
+        this.callbacks.onError(null);
+      }
     } catch (err: any) {
       if (reqVersion >= this.lastCommittedVersion) {
         this.callbacks.onError(err.message || "Errore di connessione");
@@ -115,11 +154,12 @@ export class HouseDataSyncController {
   private checkReconciliation() {
     if (this.activeMutationsCount === 0 && this.needsReconciliation) {
       this.needsReconciliation = false;
-      this.fetchData();
+      this.fetchData(false);
     }
   }
 
   async completeCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    this.callbacks.onError(null);
     const targetRoommate = this.data?.roommates.find((r) => r.id === roommateId);
 
     // Aggiornamento ottimistico immediato
@@ -143,7 +183,7 @@ export class HouseDataSyncController {
 
     this.activeMutationsCount++;
     this.inFlightCleaningIds.add(taskId);
-    this.callbacks.onSubmittingTaskIdChange(taskId);
+    this.notifySubmittingCleaningIds();
     this.callbacks.onIsSubmittingChange(true);
     const mutVersion = ++this.version;
 
@@ -198,13 +238,14 @@ export class HouseDataSyncController {
     } finally {
       this.inFlightCleaningIds.delete(taskId);
       this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onSubmittingTaskIdChange(null);
+      this.notifySubmittingCleaningIds();
       this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
       this.checkReconciliation();
     }
   }
 
   async declineCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    this.callbacks.onError(null);
     // Aggiornamento ottimistico immediato
     if (this.data && this.data.currentWeek) {
       const task = this.data.currentWeek.cleanings.find((c) => c.id === taskId);
@@ -222,7 +263,7 @@ export class HouseDataSyncController {
 
     this.activeMutationsCount++;
     this.inFlightCleaningIds.add(taskId);
-    this.callbacks.onSubmittingTaskIdChange(taskId);
+    this.notifySubmittingCleaningIds();
     this.callbacks.onIsSubmittingChange(true);
     const mutVersion = ++this.version;
 
@@ -271,13 +312,14 @@ export class HouseDataSyncController {
     } finally {
       this.inFlightCleaningIds.delete(taskId);
       this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onSubmittingTaskIdChange(null);
+      this.notifySubmittingCleaningIds();
       this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
       this.checkReconciliation();
     }
   }
 
   async uncompleteCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    this.callbacks.onError(null);
     if (this.data && this.data.currentWeek) {
       const updatedCleanings = this.data.currentWeek.cleanings.map((c) =>
         c.id === taskId
@@ -298,7 +340,7 @@ export class HouseDataSyncController {
 
     this.activeMutationsCount++;
     this.inFlightCleaningIds.add(taskId);
-    this.callbacks.onSubmittingTaskIdChange(taskId);
+    this.notifySubmittingCleaningIds();
     this.callbacks.onIsSubmittingChange(true);
     const mutVersion = ++this.version;
 
@@ -347,13 +389,14 @@ export class HouseDataSyncController {
     } finally {
       this.inFlightCleaningIds.delete(taskId);
       this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onSubmittingTaskIdChange(null);
+      this.notifySubmittingCleaningIds();
       this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
       this.checkReconciliation();
     }
   }
 
   async claimCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    this.callbacks.onError(null);
     const targetRoommate = this.data?.roommates.find((r) => r.id === roommateId);
     if (this.data && this.data.currentWeek) {
       const updatedCleanings = this.data.currentWeek.cleanings.map((c) =>
@@ -374,7 +417,7 @@ export class HouseDataSyncController {
 
     this.activeMutationsCount++;
     this.inFlightCleaningIds.add(taskId);
-    this.callbacks.onSubmittingTaskIdChange(taskId);
+    this.notifySubmittingCleaningIds();
     this.callbacks.onIsSubmittingChange(true);
     const mutVersion = ++this.version;
 
@@ -423,13 +466,14 @@ export class HouseDataSyncController {
     } finally {
       this.inFlightCleaningIds.delete(taskId);
       this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onSubmittingTaskIdChange(null);
+      this.notifySubmittingCleaningIds();
       this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
       this.checkReconciliation();
     }
   }
 
   async reportTrash(): Promise<boolean> {
+    this.callbacks.onError(null);
     if (this.data) {
       const nextAssigned =
         this.data.trashQueue && this.data.trashQueue.length > 0 ? this.data.trashQueue[0] : 0;
@@ -449,6 +493,7 @@ export class HouseDataSyncController {
 
     this.activeMutationsCount++;
     this.inFlightTrash = true;
+    this.callbacks.onIsTrashSubmittingChange?.(true);
     this.callbacks.onIsSubmittingChange(true);
     const mutVersion = ++this.version;
 
@@ -484,6 +529,7 @@ export class HouseDataSyncController {
       return false;
     } finally {
       this.inFlightTrash = false;
+      this.callbacks.onIsTrashSubmittingChange?.(false);
       this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
       this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
       this.checkReconciliation();
@@ -491,6 +537,7 @@ export class HouseDataSyncController {
   }
 
   async declineTrash(roommateId: number): Promise<boolean> {
+    this.callbacks.onError(null);
     if (this.data && this.data.openTrashTask) {
       const currentTask = this.data.openTrashTask;
       const updatedDeclined = currentTask.declinedBy.includes(roommateId)
@@ -509,6 +556,7 @@ export class HouseDataSyncController {
 
     this.activeMutationsCount++;
     this.inFlightTrash = true;
+    this.callbacks.onIsTrashSubmittingChange?.(true);
     this.callbacks.onIsSubmittingChange(true);
     const mutVersion = ++this.version;
 
@@ -544,6 +592,7 @@ export class HouseDataSyncController {
       return false;
     } finally {
       this.inFlightTrash = false;
+      this.callbacks.onIsTrashSubmittingChange?.(false);
       this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
       this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
       this.checkReconciliation();
@@ -551,12 +600,14 @@ export class HouseDataSyncController {
   }
 
   async completeTrash(roommateId: number): Promise<boolean> {
+    this.callbacks.onError(null);
     if (this.data) {
       this.updateData({ ...this.data, openTrashTask: null });
     }
 
     this.activeMutationsCount++;
     this.inFlightTrash = true;
+    this.callbacks.onIsTrashSubmittingChange?.(true);
     this.callbacks.onIsSubmittingChange(true);
     const mutVersion = ++this.version;
 
@@ -592,6 +643,7 @@ export class HouseDataSyncController {
       return false;
     } finally {
       this.inFlightTrash = false;
+      this.callbacks.onIsTrashSubmittingChange?.(false);
       this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
       this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
       this.checkReconciliation();
@@ -599,6 +651,7 @@ export class HouseDataSyncController {
   }
 
   async claimTrash(roommateId: number): Promise<boolean> {
+    this.callbacks.onError(null);
     if (this.data && this.data.openTrashTask) {
       this.updateData({
         ...this.data,
@@ -612,6 +665,7 @@ export class HouseDataSyncController {
 
     this.activeMutationsCount++;
     this.inFlightTrash = true;
+    this.callbacks.onIsTrashSubmittingChange?.(true);
     this.callbacks.onIsSubmittingChange(true);
     const mutVersion = ++this.version;
 
@@ -647,6 +701,7 @@ export class HouseDataSyncController {
       return false;
     } finally {
       this.inFlightTrash = false;
+      this.callbacks.onIsTrashSubmittingChange?.(false);
       this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
       this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
       this.checkReconciliation();
@@ -695,13 +750,16 @@ export class HouseDataSyncController {
   }
 
   async logout(): Promise<void> {
+    this.invalidatePendingRequests();
     try {
       await this.fetcher("/api/auth/logout", { method: "POST" });
     } catch {
       //
     } finally {
+      this.invalidatePendingRequests();
       this.callbacks.onAuthenticatedChange(false);
       this.updateData(null);
+      this.callbacks.onLoadingChange(false);
     }
   }
 }

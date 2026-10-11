@@ -19,10 +19,13 @@ export default function HomePage() {
     loading,
     error,
     submittingTaskId,
+    isCleaningSubmitting,
+    isTrashSubmitting,
     isSubmitting,
     authenticated,
     myRoommateId,
     refresh,
+    invalidatePendingRequests,
     completeCleaning,
     declineCleaning,
     claimCleaning,
@@ -49,7 +52,14 @@ export default function HomePage() {
 
   // Blocco di autenticazione se non connesso o privo di profilo
   if (!authenticated || myRoommateId === null) {
-    return <AuthGate onSuccess={refresh} />;
+    return (
+      <AuthGate
+        onSuccess={() => {
+          invalidatePendingRequests();
+          refresh();
+        }}
+      />
+    );
   }
 
   const roommates = data?.roommates || [];
@@ -101,7 +111,7 @@ export default function HomePage() {
                 trashQueue={trashQueue}
                 roommates={roommates}
                 myRoommateId={myRoommateId}
-                isSubmitting={isSubmitting && submittingTaskId === null}
+                isSubmitting={isTrashSubmitting}
                 onReport={reportTrash}
                 onDecline={declineTrash}
                 onComplete={(rId) => completeTrash(rId)}
@@ -133,7 +143,7 @@ export default function HomePage() {
                     task={task}
                     roommates={roommates}
                     myRoommateId={myRoommateId}
-                    isSubmitting={submittingTaskId === task.id}
+                    isSubmitting={isCleaningSubmitting(task.id)}
                     onComplete={(taskId) => {
                       completeCleaning(taskId, currentWeek.weekKey, myRoommateId);
                     }}

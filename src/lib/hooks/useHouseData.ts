@@ -10,6 +10,8 @@ export function useHouseData() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submittingTaskId, setSubmittingTaskId] = useState<string | null>(null);
+  const [submittingCleaningIds, setSubmittingCleaningIds] = useState<Set<string>>(new Set());
+  const [isTrashSubmitting, setIsTrashSubmitting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const myRoommateId =
@@ -24,6 +26,8 @@ export function useHouseData() {
         onError: setError,
         onAuthenticatedChange: setAuthenticated,
         onSubmittingTaskIdChange: setSubmittingTaskId,
+        onSubmittingCleaningIdsChange: setSubmittingCleaningIds,
+        onIsTrashSubmittingChange: setIsTrashSubmitting,
         onIsSubmittingChange: setIsSubmitting,
       },
     });
@@ -37,22 +41,28 @@ export function useHouseData() {
       onError: setError,
       onAuthenticatedChange: setAuthenticated,
       onSubmittingTaskIdChange: setSubmittingTaskId,
+      onSubmittingCleaningIdsChange: setSubmittingCleaningIds,
+      onIsTrashSubmittingChange: setIsTrashSubmitting,
       onIsSubmittingChange: setIsSubmitting,
     });
   });
 
-  const fetchData = useCallback(() => {
-    controllerRef.current?.fetchData();
+  const fetchData = useCallback((isManual = false) => {
+    controllerRef.current?.fetchData(isManual);
+  }, []);
+
+  const invalidatePendingRequests = useCallback(() => {
+    controllerRef.current?.invalidatePendingRequests();
   }, []);
 
   // Aggiornamento all'apertura, al ritorno sull'app e al focus
   useEffect(() => {
-    fetchData();
+    fetchData(false);
 
-    const onFocus = () => fetchData();
+    const onFocus = () => fetchData(false);
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        fetchData();
+        fetchData(false);
       }
     };
 
@@ -64,6 +74,11 @@ export function useHouseData() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [fetchData]);
+
+  const isCleaningSubmitting = useCallback(
+    (taskId: string) => submittingCleaningIds.has(taskId),
+    [submittingCleaningIds]
+  );
 
   // Azioni pulizie
   const completeCleaning = async (taskId: string, weekKey: string, roommateId?: number) => {
@@ -127,10 +142,15 @@ export function useHouseData() {
     loading,
     error,
     submittingTaskId,
+    submittingCleaningIds,
+    isCleaningSubmitting,
+    isTrashSubmitting,
     isSubmitting,
     authenticated,
     myRoommateId,
-    refresh: fetchData,
+    refresh: () => fetchData(true),
+    invalidatePendingRequests,
+    resetSession: invalidatePendingRequests,
     completeCleaning,
     declineCleaning,
     claimCleaning,
