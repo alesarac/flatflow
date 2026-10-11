@@ -180,7 +180,7 @@ export function SettingsView({
                 <span>Salvataggio in corso...</span>
               </>
             ) : (
-              <span>Salva il tuo nome</span>
+              <span>Cambia il tuo nome</span>
             )}
           </button>
         </form>
