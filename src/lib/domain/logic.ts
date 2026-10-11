@@ -266,7 +266,7 @@ export function findSubstitute(
  */
 export function createWeekCleanings(
   weekKey: string,
-  roommates: Roommate[] = []
+  roommates: readonly Roommate[] = []
 ): CleaningTask[] {
   const weekIndex = getRotationWeekIndex(weekKey);
   const cleanings: CleaningTask[] = [];
@@ -300,7 +300,7 @@ export function createWeekCleanings(
 export function declineCleaningTask(
   task: CleaningTask,
   decliningRoommateId: number,
-  roommates: Roommate[] = []
+  roommates: readonly Roommate[] = []
 ): CleaningTask {
   if (task.isCompleted) {
     throw new Error("L'attività è già stata completata.");
@@ -330,7 +330,7 @@ export function declineCleaningTask(
 export function claimCleaningTask(
   task: CleaningTask,
   claimingRoommateId: number,
-  roommates: Roommate[] = []
+  roommates: readonly Roommate[] = []
 ): CleaningTask {
   if (task.isCompleted) {
     throw new Error("L'attività risulta già completata.");
@@ -361,7 +361,7 @@ export function determineCleaningAssignee(
   areaId: number,
   weekKey: string,
   declinedBy: number[],
-  roommates: Roommate[] = []
+  roommates: readonly Roommate[] = []
 ): { assignedTo: number | null; assignedToName: string | null } {
   const weekIndex = getRotationWeekIndex(weekKey);
   const baseRoommate = getBaseAssignment(areaId, weekIndex);
@@ -386,7 +386,7 @@ export function determineCleaningAssignee(
  */
 export function uncompleteCleaningTask(
   task: CleaningTask,
-  roommates: Roommate[] = []
+  roommates: readonly Roommate[] = []
 ): CleaningTask {
   if (!task.isCompleted) {
     throw new Error("L'attività non risulta completata.");

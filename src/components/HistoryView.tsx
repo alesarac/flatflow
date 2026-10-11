@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { HistoryItem } from "../lib/domain/types";
 import { formatHistoryWeekLabel, getWeekKey, parseWeekKey } from "../lib/domain/logic";
 import {
@@ -183,7 +183,7 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
     return item.title.replace(/^Pulizia\s+/i, "");
   };
 
-  const monthGroups = groupHistoryByMonthAndWeek(history);
+  const monthGroups = useMemo(() => groupHistoryByMonthAndWeek(history), [history]);
 
   return (
     <div className="p-4 space-y-5">

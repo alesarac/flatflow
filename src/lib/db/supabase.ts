@@ -102,7 +102,6 @@ export class SupabaseHouseRepository implements IHouseRepository {
 
   async getWeekState(weekKey: string): Promise<WeekState> {
     const { monday, sunday } = parseWeekKey(weekKey);
-    const roommates = await this.getRoommates();
 
     // Lettura compiti di pulizia
     const { data: existingTasks, error: fetchError } = await this.client
@@ -119,6 +118,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
 
     // Se mancano i compiti (o sono meno di 3), inizializza con ON CONFLICT DO NOTHING
     if (!existingTasks || existingTasks.length < 3) {
+      const roommates = await this.getRoommates();
       const initialTasks = createWeekCleanings(weekKey, roommates);
       const rows = initialTasks.map((c) => ({
         id: c.id,
@@ -152,12 +152,15 @@ export class SupabaseHouseRepository implements IHouseRepository {
         throw new Error(`Errore ricaricamento compiti: ${reloadError?.message}`);
       }
 
+      const needsRoommates = reloadedTasks.some((t) => !t.assigned_to_name && t.assigned_to !== null);
+      const fallbackRoommates = needsRoommates ? await this.getRoommates() : [];
+
       cleanings = reloadedTasks.map((t) => ({
         id: t.id,
         weekKey: t.week_key,
         areaId: t.area_id,
         assignedTo: t.assigned_to,
-        assignedToName: t.assigned_to_name || (t.assigned_to !== null ? roommates.find((r) => r.id === t.assigned_to)?.name || null : null),
+        assignedToName: t.assigned_to_name || (t.assigned_to !== null ? fallbackRoommates.find((r) => r.id === t.assigned_to)?.name || null : null),
         declinedBy: t.declined_by || [],
         isCompleted: t.is_completed,
         completedAt: t.completed_at,
@@ -165,12 +168,15 @@ export class SupabaseHouseRepository implements IHouseRepository {
         completedBy: t.completed_by !== undefined ? t.completed_by : null,
       }));
     } else {
+      const needsRoommates = existingTasks.some((t) => !t.assigned_to_name && t.assigned_to !== null);
+      const fallbackRoommates = needsRoommates ? await this.getRoommates() : [];
+
       cleanings = existingTasks.map((t) => ({
         id: t.id,
         weekKey: t.week_key,
         areaId: t.area_id,
         assignedTo: t.assigned_to,
-        assignedToName: t.assigned_to_name || (t.assigned_to !== null ? roommates.find((r) => r.id === t.assigned_to)?.name || null : null),
+        assignedToName: t.assigned_to_name || (t.assigned_to !== null ? fallbackRoommates.find((r) => r.id === t.assigned_to)?.name || null : null),
         declinedBy: t.declined_by || [],
         isCompleted: t.is_completed,
         completedAt: t.completed_at,
@@ -351,15 +357,38 @@ export class SupabaseHouseRepository implements IHouseRepository {
     const currentWeekKey = getWeekKey(new Date());
     const items: HistoryItem[] = [];
 
-    // 1. Pulizie completate
-    const { data: completedCleanings, error: cErr } = await this.client
-      .from("cleaning_tasks")
-      .select("*")
-      .eq("is_completed", true)
-      .order("completed_at", { ascending: false });
+    // Esecuzione concorrente in parallelo delle 3 query indipendenti
+    const [
+      { data: completedCleanings, error: cErr },
+      { data: pastIncompleteCleanings, error: incErr },
+      { data: completedTrash, error: trErr },
+    ] = await Promise.all([
+      this.client
+        .from("cleaning_tasks")
+        .select("*")
+        .eq("is_completed", true)
+        .order("completed_at", { ascending: false }),
+      this.client
+        .from("cleaning_tasks")
+        .select("*")
+        .lt("week_key", currentWeekKey)
+        .eq("is_completed", false)
+        .order("week_key", { ascending: false }),
+      this.client
+        .from("trash_tasks")
+        .select("*")
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false }),
+    ]);
 
     if (cErr) {
       throw new Error(`Errore lettura storico pulizie: ${cErr.message}`);
+    }
+    if (incErr) {
+      throw new Error(`Errore lettura pulizie incomplete: ${incErr.message}`);
+    }
+    if (trErr) {
+      throw new Error(`Errore lettura storico spazzatura: ${trErr.message}`);
     }
 
     if (completedCleanings) {
@@ -379,20 +408,11 @@ export class SupabaseHouseRepository implements IHouseRepository {
       }
     }
 
-    // 2. Pulizie incomplete di settimane passate
-    const { data: pastIncompleteCleanings, error: incErr } = await this.client
-      .from("cleaning_tasks")
-      .select("*")
-      .lt("week_key", currentWeekKey)
-      .eq("is_completed", false)
-      .order("week_key", { ascending: false });
-
-    if (incErr) {
-      throw new Error(`Errore lettura pulizie incomplete: ${incErr.message}`);
-    }
-
     if (pastIncompleteCleanings && pastIncompleteCleanings.length > 0) {
-      const roommates = await this.getRoommates();
+      const needsRoommates = pastIncompleteCleanings.some(
+        (t) => !t.assigned_to_name && t.assigned_to !== null
+      );
+      const roommates = needsRoommates ? await this.getRoommates() : [];
       for (const t of pastIncompleteCleanings) {
         const area = AREAS.find((a) => a.id === t.area_id);
         const areaName = area ? area.name : `Area ${t.area_id}`;
@@ -415,17 +435,6 @@ export class SupabaseHouseRepository implements IHouseRepository {
           weekKey: t.week_key,
         });
       }
-    }
-
-    // 3. Spazzatura completata
-    const { data: completedTrash, error: trErr } = await this.client
-      .from("trash_tasks")
-      .select("*")
-      .eq("status", "completed")
-      .order("completed_at", { ascending: false });
-
-    if (trErr) {
-      throw new Error(`Errore lettura storico spazzatura: ${trErr.message}`);
     }
 
     if (completedTrash) {

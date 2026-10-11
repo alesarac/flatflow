@@ -22,7 +22,7 @@ import {
   getWeeklyProgressBarSegments,
   formatTimeAgo,
 } from "./logic";
-import { DEFAULT_ROOMMATES } from "./types";
+import { DEFAULT_ROOMMATES, CleaningTask } from "./types";
 
 describe("Europe/Rome Calendar & Week Helpers (P1-05)", () => {
   it("correctly calculates Rome civil week transition at midnight, not UTC (audit reproduction)", () => {
@@ -432,7 +432,7 @@ describe("Weekly Progress Bar Logic (Point 6)", () => {
     const task1 = { ...baseTasks[1], isCompleted: true, completedBy: 1, completedByName: "Coinquilino 2" };
     const task2 = { ...baseTasks[2], isCompleted: true, completedBy: 2, completedByName: "Coinquilino 3" };
 
-    let current = [task0, task1, task2];
+    let current: CleaningTask[] = [task0, task1, task2];
     expect(getWeeklyProgressBarSegments(current)).toEqual([true, true, true]);
 
     // Undo task 0 (Cucina) -> 2 remaining -> segments 0 and 1 green, 2 gray

@@ -68,6 +68,30 @@ export function useHouseData() {
 
     setSubmittingTaskId(taskId);
     setIsSubmitting(true);
+
+    // Aggiornamento ottimistico immediato: la UI risponde a 0ms
+    const targetRoommate = data?.roommates.find((r) => r.id === targetRoommateId);
+    setData((prev) => {
+      if (!prev || !prev.currentWeek) return prev;
+      return {
+        ...prev,
+        currentWeek: {
+          ...prev.currentWeek,
+          cleanings: prev.currentWeek.cleanings.map((c) =>
+            c.id === taskId
+              ? {
+                  ...c,
+                  isCompleted: true,
+                  completedAt: new Date().toISOString(),
+                  completedByName: targetRoommate?.name || "Coinquilino",
+                  completedBy: targetRoommateId,
+                }
+              : c
+          ),
+        },
+      };
+    });
+
     try {
       const res = await fetch("/api/house/cleanings", {
         method: "POST",
@@ -85,14 +109,18 @@ export function useHouseData() {
         const msg = resJson.error || "Impossibile completare l'attività";
         setError(msg);
         alert(msg);
-        await fetchData();
+        await fetchData(); // rollback
         return false;
       }
 
-      await fetchData();
+      // Applica direttamente lo stato autorevole restituito (evita la seconda richiesta di rete GET /api/house/data)
+      if (resJson.week) {
+        setData((prev) => (prev ? { ...prev, currentWeek: resJson.week } : prev));
+      }
       return true;
     } catch {
       setError("Errore di rete durante il salvataggio.");
+      await fetchData(); // rollback
       return false;
     } finally {
       setSubmittingTaskId(null);
@@ -127,10 +155,13 @@ export function useHouseData() {
         return false;
       }
 
-      await fetchData();
+      if (resJson.week) {
+        setData((prev) => (prev ? { ...prev, currentWeek: resJson.week } : prev));
+      }
       return true;
     } catch {
       setError("Errore di rete durante la rinuncia.");
+      await fetchData();
       return false;
     } finally {
       setSubmittingTaskId(null);
@@ -144,6 +175,29 @@ export function useHouseData() {
 
     setSubmittingTaskId(taskId);
     setIsSubmitting(true);
+
+    // Aggiornamento ottimistico immediato
+    setData((prev) => {
+      if (!prev || !prev.currentWeek) return prev;
+      return {
+        ...prev,
+        currentWeek: {
+          ...prev.currentWeek,
+          cleanings: prev.currentWeek.cleanings.map((c) =>
+            c.id === taskId
+              ? {
+                  ...c,
+                  isCompleted: false,
+                  completedAt: null,
+                  completedByName: null,
+                  completedBy: null,
+                }
+              : c
+          ),
+        },
+      };
+    });
+
     try {
       const res = await fetch("/api/house/cleanings", {
         method: "POST",
@@ -161,14 +215,17 @@ export function useHouseData() {
         const msg = resJson.error || "Impossibile annullare il completamento dell'attività";
         setError(msg);
         alert(msg);
-        await fetchData();
+        await fetchData(); // rollback
         return false;
       }
 
-      await fetchData();
+      if (resJson.week) {
+        setData((prev) => (prev ? { ...prev, currentWeek: resJson.week } : prev));
+      }
       return true;
     } catch {
       setError("Errore di rete durante l'annullamento.");
+      await fetchData(); // rollback
       return false;
     } finally {
       setSubmittingTaskId(null);
@@ -182,6 +239,29 @@ export function useHouseData() {
 
     setSubmittingTaskId(taskId);
     setIsSubmitting(true);
+
+    // Aggiornamento ottimistico immediato
+    const targetRoommate = data?.roommates.find((r) => r.id === targetRoommateId);
+    setData((prev) => {
+      if (!prev || !prev.currentWeek) return prev;
+      return {
+        ...prev,
+        currentWeek: {
+          ...prev.currentWeek,
+          cleanings: prev.currentWeek.cleanings.map((c) =>
+            c.id === taskId
+              ? {
+                  ...c,
+                  assignedTo: targetRoommateId,
+                  assignedToName: targetRoommate?.name || null,
+                  declinedBy: c.declinedBy.filter((id) => id !== targetRoommateId),
+                }
+              : c
+          ),
+        },
+      };
+    });
+
     try {
       const res = await fetch("/api/house/cleanings", {
         method: "POST",
@@ -203,10 +283,13 @@ export function useHouseData() {
         return false;
       }
 
-      await fetchData();
+      if (resJson.week) {
+        setData((prev) => (prev ? { ...prev, currentWeek: resJson.week } : prev));
+      }
       return true;
     } catch {
       setError("Errore di rete durante la presa in carico.");
+      await fetchData();
       return false;
     } finally {
       setSubmittingTaskId(null);
@@ -228,13 +311,25 @@ export function useHouseData() {
       if (!res.ok) {
         const msg = resJson.error || "Errore nella segnalazione della spazzatura";
         alert(msg);
+        await fetchData();
         return false;
       }
 
-      await fetchData();
+      if (resJson.openTrashTask !== undefined && resJson.trashQueue) {
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                openTrashTask: resJson.openTrashTask,
+                trashQueue: resJson.trashQueue,
+              }
+            : prev
+        );
+      }
       return true;
     } catch {
       alert("Errore di rete durante la segnalazione.");
+      await fetchData();
       return false;
     } finally {
       setIsSubmitting(false);
@@ -257,13 +352,25 @@ export function useHouseData() {
       if (!res.ok) {
         const msg = resJson.error || "Impossibile rinunciare al turno di spazzatura";
         alert(msg);
+        await fetchData();
         return false;
       }
 
-      await fetchData();
+      if (resJson.openTrashTask !== undefined && resJson.trashQueue) {
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                openTrashTask: resJson.openTrashTask,
+                trashQueue: resJson.trashQueue,
+              }
+            : prev
+        );
+      }
       return true;
     } catch {
       alert("Errore di rete durante la rinuncia.");
+      await fetchData();
       return false;
     } finally {
       setIsSubmitting(false);
@@ -275,6 +382,10 @@ export function useHouseData() {
     if (targetRoommateId === null) return false;
 
     setIsSubmitting(true);
+
+    // Aggiornamento ottimistico: la spazzatura passa subito allo stato chiuso/in ordine
+    setData((prev) => (prev ? { ...prev, openTrashTask: null } : prev));
+
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
@@ -286,13 +397,25 @@ export function useHouseData() {
       if (!res.ok) {
         const msg = resJson.error || "Impossibile completare la spazzatura";
         alert(msg);
+        await fetchData(); // rollback
         return false;
       }
 
-      await fetchData();
+      if (resJson.trashQueue) {
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                openTrashTask: null,
+                trashQueue: resJson.trashQueue,
+              }
+            : prev
+        );
+      }
       return true;
     } catch {
       alert("Errore di rete durante il salvataggio.");
+      await fetchData(); // rollback
       return false;
     } finally {
       setIsSubmitting(false);
@@ -315,13 +438,25 @@ export function useHouseData() {
       if (!res.ok) {
         const msg = resJson.error || "Impossibile prendere in carico la spazzatura";
         alert(msg);
+        await fetchData();
         return false;
       }
 
-      await fetchData();
+      if (resJson.openTrashTask !== undefined && resJson.trashQueue) {
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                openTrashTask: resJson.openTrashTask,
+                trashQueue: resJson.trashQueue,
+              }
+            : prev
+        );
+      }
       return true;
     } catch {
       alert("Errore di rete durante la presa in carico.");
+      await fetchData();
       return false;
     } finally {
       setIsSubmitting(false);
@@ -340,7 +475,16 @@ export function useHouseData() {
       if (!res.ok) {
         return false;
       }
-      await fetchData();
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              roommates: prev.roommates.map((r) =>
+                r.id === id ? { ...r, name: name.trim() } : r
+              ),
+            }
+          : prev
+      );
       return true;
     } catch {
       return false;

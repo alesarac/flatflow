@@ -101,7 +101,7 @@ export default function HomePage() {
                 trashQueue={trashQueue}
                 roommates={roommates}
                 myRoommateId={myRoommateId}
-                isSubmitting={isSubmitting}
+                isSubmitting={isSubmitting && submittingTaskId === null}
                 onReport={reportTrash}
                 onDecline={declineTrash}
                 onComplete={(rId) => completeTrash(rId)}
@@ -133,7 +133,7 @@ export default function HomePage() {
                     task={task}
                     roommates={roommates}
                     myRoommateId={myRoommateId}
-                    isSubmitting={isSubmitting || submittingTaskId === task.id}
+                    isSubmitting={submittingTaskId === task.id}
                     onComplete={(taskId) => {
                       completeCleaning(taskId, currentWeek.weekKey, myRoommateId);
                     }}
