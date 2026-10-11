@@ -96,7 +96,7 @@ export function TrashCard({
             )
           ) : (
             <span className="inline-flex items-center text-[11px] font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2.5 py-0.5 rounded-full">
-              <span>In ordine</span>
+              <span>A posto</span>
             </span>
           )}
         </div>
