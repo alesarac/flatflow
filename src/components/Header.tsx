@@ -13,7 +13,7 @@ export function Header({ activeRoommate }: HeaderProps) {
       <div className="max-w-md mx-auto px-4 pb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-extrabold text-2xl tracking-tight text-[#4355EC] dark:text-indigo-400">
-            Flatflow
+            FlatLoop
           </span>
         </div>
 

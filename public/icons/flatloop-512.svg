@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="512"
+     height="512"
+     viewBox="0 0 512 512"
+     role="img"
+     aria-label="FlatLoop">
+  <rect width="512" height="512" fill="#0F766E"/>
+
+  <!-- Contorno della casa -->
+  <path
+    d="M132 236 L256 132 L380 236 M160 224 V386 H352 V224"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="23"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Due frecce curve: loop dei turni -->
+  <path
+    d="M209 293 C208 265 228 244 257 244 C279 244 295 255 303 272 M283 271 H305 V249 M303 300 C303 328 283 349 255 349 C232 349 216 338 209 321 M230 322 H207 V344"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="19"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

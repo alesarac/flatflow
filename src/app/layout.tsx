@@ -3,17 +3,24 @@ import "./globals.css";
 import { ThemeProvider } from "../lib/theme/ThemeContext";
 
 export const metadata: Metadata = {
-  title: "Flatflow — Pulizie e Spazzatura",
-  description: "Lavagna digitale per le pulizie e la spazzatura in una casa di tre coinquilini",
+  title: "FlatLoop — Pulizie, spesa e turni",
+  description: "Web app mobile-first per la gestione condivisa di pulizie, spazzatura e lista della spesa",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Flatflow",
+    title: "FlatLoop",
   },
   icons: {
-    icon: "/icons/icon-192.svg",
-    apple: "/icons/icon-192.svg",
+    icon: [
+      { url: "/icons/flatloop-192.svg", type: "image/svg+xml" },
+      { url: "/icons/flatloop-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/flatloop-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
 };
 
@@ -21,7 +28,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#4f46e5",
+  themeColor: "#0F766E",
 };
 
 export default function RootLayout({

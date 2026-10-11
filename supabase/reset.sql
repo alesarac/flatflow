@@ -1,5 +1,5 @@
 -- ====================================================================
--- Flatflow — Reset Dati di Prova (PostgreSQL / Supabase)
+-- FlatLoop — Reset Dati di Prova (PostgreSQL / Supabase)
 -- ====================================================================
 -- Questo script azzera tutti i dati operativi di prova senza toccare la
 -- struttura del database, le tabelle, gli indici, le funzioni RPC o le

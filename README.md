@@ -1,8 +1,8 @@
-# Flatflow 🏠
+# FlatLoop 🏠
 
-**Flatflow** è una moderna web application mobile-first (PWA) progettata per organizzare le pulizie settimanali e lo smaltimento della spazzatura in una casa condivisa da **tre coinquilini**.
+**FlatLoop** è una moderna web application mobile-first (PWA) progettata per organizzare le pulizie settimanali, lo smaltimento della spazzatura e la lista della spesa condivisa in una casa di **tre coinquilini**.
 
-Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice lavagna digitale: chiunque apre l'applicazione dal telefono vede immediatamente **a chi tocca fare cosa, cosa è già stato fatto e chi deve buttare la spazzatura**.
+Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice lavagna digitale: chiunque apre l'applicazione dal telefono vede immediatamente **a chi tocca fare cosa, cosa è già stato fatto, chi deve buttare la spazzatura e cosa c'è da comprare**.
 
 ---
 

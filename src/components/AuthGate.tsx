@@ -88,7 +88,7 @@ export function AuthGate({ onSuccess }: AuthGateProps) {
 
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Flatflow
+            FlatLoop
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
             Inserisci il codice della casa e seleziona il tuo profilo per accedere.

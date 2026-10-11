@@ -1,5 +1,5 @@
 -- ==============================================================================
--- Flatflow: Personalizzazione nomi dei coinquilini
+-- FlatLoop: Personalizzazione nomi dei coinquilini
 -- ==============================================================================
 -- Esegui questo script dall'Editor SQL della Dashboard di Supabase (SQL Editor)
 -- per configurare i nomi effettivi dei 3 coinquilini della casa.

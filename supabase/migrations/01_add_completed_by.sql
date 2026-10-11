@@ -1,5 +1,5 @@
 -- ====================================================================
--- Flatflow — Migrazione 01: Aggiunta completed_by a cleaning_tasks
+-- FlatLoop — Migrazione 01: Aggiunta completed_by a cleaning_tasks
 -- ====================================================================
 -- Obiettivo: identificare in modo stabile il coinquilino che ha completato
 -- una pulizia tramite ID (0, 1, 2) anziché tramite nome testuale.

@@ -1,8 +1,8 @@
 {
-  "name": "flatflow",
+  "name": "flatloop",
   "version": "1.0.0",
   "private": true,
-  "description": "App web per l'organizzazione di pulizie e spazzatura in una casa condivisa da tre coinquilini",
+  "description": "Web app mobile-first per l'organizzazione di pulizie, spazzatura e lista della spesa condivisa per tre coinquilini",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

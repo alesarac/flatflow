@@ -45,7 +45,7 @@ export default function HomePage() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
         <Loader2 className="w-8 h-8 text-indigo-600 dark:text-indigo-500 animate-spin" />
-        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Caricamento Flatflow...</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Caricamento FlatLoop...</span>
       </div>
     );
   }

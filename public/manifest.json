@@ -1,23 +1,35 @@
 {
-  "name": "Flatflow",
-  "short_name": "Flatflow",
-  "description": "Organizzazione pulizie e spazzatura per 3 coinquilini",
+  "name": "FlatLoop",
+  "short_name": "FlatLoop",
+  "description": "Organizzazione pulizie, spazzatura e lista della spesa per 3 coinquilini",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
-  "theme_color": "#4f46e5",
+  "theme_color": "#0F766E",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icons/icon-192.svg",
+      "src": "/icons/flatloop-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/flatloop-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/flatloop-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512.svg",
+      "src": "/icons/flatloop-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

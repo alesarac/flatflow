@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Azzera i dati operativi di prova di Flatflow su Supabase eseguendo supabase/reset.sql.
+    Azzera i dati operativi di prova di FlatLoop su Supabase eseguendo supabase/reset.sql.
 
 .DESCRIPTION
     Richiede una conferma esplicita prima di procedere.
@@ -135,7 +135,7 @@ if (-not $password) {
 # 5. Visualizzazione chiara del target prima della conferma esplicita
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Yellow
-Write-Host "  ATTENZIONE: RESET DATI DI PROVA FLATFLOW                " -ForegroundColor Yellow
+Write-Host "  ATTENZIONE: RESET DATI DI PROVA FLATLOOP                " -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Yellow
 Write-Host "DATABASE DI DESTINAZIONE:" -ForegroundColor Cyan
 Write-Host "  - Host / Endpoint:   $hostName" -ForegroundColor Cyan

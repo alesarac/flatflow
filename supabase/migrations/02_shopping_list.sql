@@ -1,5 +1,5 @@
 -- ====================================================================
--- Flatflow — Migrazione 02: Tabella shopping_items (Lista della spesa)
+-- FlatLoop — Migrazione 02: Tabella shopping_items (Lista della spesa)
 -- ====================================================================
 -- Obiettivo: memorizzare i prodotti della lista della spesa condivisa
 -- tra i tre coinquilini, tracciando chi ha aggiunto ciascun prodotto,

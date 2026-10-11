@@ -1,4 +1,4 @@
-# Guida alla Configurazione, Pubblicazione e Utilizzo di Flatflow 🚀
+# Guida alla Configurazione, Pubblicazione e Utilizzo di FlatLoop 🚀
 
 Questa guida fornisce le istruzioni passo-passo, adatte anche a un principiante, per configurare il database Supabase, verificare la persistenza in locale, effettuare i controlli di sicurezza, pubblicare l'applicazione su Vercel e iniziare a utilizzarla con i propri coinquilini.
 
@@ -16,7 +16,7 @@ Questa guida fornisce le istruzioni passo-passo, adatte anche a un principiante,
 2. **Crea un nuovo progetto:**
 
    - Clicca su **«New Project»**.
-   - Scegli un nome per il progetto (es. `flatflow`).
+   - Scegli un nome per il progetto (es. `flatloop`).
    - Imposta una password sicura per il database (conservala in un luogo sicuro).
    - Scegli la regione più vicina (es. *West Europe - Frankfurt* per l'Italia).
    - Mantieni selezionato il piano gratuito (**Free Tier**).
@@ -43,7 +43,7 @@ Questa guida fornisce le istruzioni passo-passo, adatte anche a un principiante,
 
 ## 2. Generazione dei Segreti di Sicurezza
 
-Flatflow non utilizza credenziali predefinite insicure: tutti i segreti devono essere impostati prima dell'avvio.
+FlatLoop non utilizza credenziali predefinite insicure: tutti i segreti devono essere impostati prima dell'avvio.
 
 1. **`HOUSE_SECRET_CODE` (Codice di accesso della casa):**
 
@@ -117,7 +117,7 @@ Prima di mettere l'app a disposizione dei coinquilini, è fondamentale verificar
    ```
 
    - **Risultato atteso:** la richiesta viene respinta con errore di autorizzazione (`permission denied`).
-3. **Conclusione:** Solo il server di Flatflow (tramite la `SUPABASE_SECRET_KEY` configurata sul backend) può leggere e modificare i dati del database.
+3. **Conclusione:** Solo il server di FlatLoop (tramite la `SUPABASE_SECRET_KEY` configurata sul backend) può leggere e modificare i dati del database.
 
 ---
 
@@ -154,7 +154,7 @@ Prima di mettere l'app a disposizione dei coinquilini, è fondamentale verificar
 
    - Clicca su **«Deploy»**.
    - Vercel compilerà l'applicazione in circa 45 secondi.
-   - Al termine, riceverai un URL HTTPS pubblico (es. `https://flatflow-xyz.vercel.app`).
+   - Al termine, riceverai un URL HTTPS pubblico (es. `https://flatloop-xyz.vercel.app`).
 
 ---
 
@@ -165,7 +165,7 @@ I piani gratuiti di Supabase e Vercel sono più che sufficienti per l'utilizzo d
 ### Supabase (Free Tier):
 
 - **Richieste API:** **Illimitate**.
-- **Spazio Database:** fino a 500 MB di archiviazione PostgreSQL (l'intero storico di Flatflow per diversi anni occupa meno di 5 MB).
+- **Spazio Database:** fino a 500 MB di archiviazione PostgreSQL (l'intero storico di FlatLoop per diversi anni occupa meno di 5 MB).
 - **Pausa per inattività e ripristino:** se un progetto gratuito non riceve traffico o query per oltre una settimana, Supabase può metterlo temporaneamente in pausa ("paused"). Per riattivarlo:
   1. Accedi alla dashboard su [supabase.com](https://supabase.com).
   2. Clicca sul pulsante **«Restore project»**.
@@ -227,7 +227,7 @@ Per utilizzare l'app a schermo intero senza barre di navigazione del browser:
 
 ## 8. Reset dei Dati di Prova (Ripristino allo Stato Iniziale)
 
-Durante la fase di test potresti voler ripulire il database e riportare Flatflow allo stato di partenza, come se l'app fosse appena stata installata.
+Durante la fase di test potresti voler ripulire il database e riportare FlatLoop allo stato di partenza, come se l'app fosse appena stata installata.
 
 ### Dati eliminati e dati conservati:
 

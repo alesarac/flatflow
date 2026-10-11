@@ -1,5 +1,5 @@
 -- ====================================================================
--- Flatflow — Schema Database Supabase (PostgreSQL)
+-- FlatLoop — Schema Database Supabase (PostgreSQL)
 -- ====================================================================
 
 -- 1. Tabella configurazione casa
