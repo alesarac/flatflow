@@ -383,26 +383,26 @@ export class SupabaseHouseRepository implements IHouseRepository {
 
     // Esecuzione concorrente in parallelo delle 3 query indipendenti limitando i record al volume necessario
     const [
-      { data: completedCleanings, error: cErr },
-      { data: pastIncompleteCleanings, error: incErr },
-      { data: completedTrash, error: trErr },
+      { data: completedCleanings, count: cCount, error: cErr },
+      { data: pastIncompleteCleanings, count: incCount, error: incErr },
+      { data: completedTrash, count: trCount, error: trErr },
     ] = await Promise.all([
       this.client
         .from("cleaning_tasks")
-        .select("id, area_id, week_key, is_completed, completed_at, completed_by_name, created_at")
+        .select("id, area_id, week_key, is_completed, completed_at, completed_by_name, created_at", { count: "exact" })
         .eq("is_completed", true)
         .order("completed_at", { ascending: false })
         .limit(fetchLimit),
       this.client
         .from("cleaning_tasks")
-        .select("id, area_id, week_key, is_completed, assigned_to, assigned_to_name")
+        .select("id, area_id, week_key, is_completed, assigned_to, assigned_to_name", { count: "exact" })
         .lt("week_key", currentWeekKey)
         .eq("is_completed", false)
         .order("week_key", { ascending: false })
         .limit(fetchLimit),
       this.client
         .from("trash_tasks")
-        .select("id, status, completed_by_name, completed_at, reported_at")
+        .select("id, status, completed_by_name, completed_at, reported_at", { count: "exact" })
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
         .limit(fetchLimit),
@@ -480,7 +480,15 @@ export class SupabaseHouseRepository implements IHouseRepository {
     // Ordinamento cronologico decrescente globale
     items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const totalCount = items.length;
+    const exactCountProvided =
+      typeof cCount === "number" ||
+      typeof incCount === "number" ||
+      typeof trCount === "number";
+
+    const totalCount = exactCountProvided
+      ? (cCount || 0) + (incCount || 0) + (trCount || 0)
+      : items.length;
+
     const paginated = items.slice(offset, offset + limit);
     const hasMore = offset + limit < totalCount;
 

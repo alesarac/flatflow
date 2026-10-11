@@ -346,4 +346,89 @@ describe("SupabaseHouseRepository Shopping Items Non-Existent and Concurrent Del
   });
 });
 
+describe("SupabaseHouseRepository History Pagination with > 30 items in single category", () => {
+  it("paginates accurately across multiple pages and reports hasMore: true when total category items exceed page limit", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    // Genera 70 compiti completati per una sola categoria (cleaning_tasks)
+    const mockTasks = Array.from({ length: 70 }, (_, i) => ({
+      id: `task-${i}`,
+      area_id: 0,
+      week_key: "2026-W30",
+      is_completed: true,
+      completed_at: new Date(Date.now() - i * 60000).toISOString(),
+      completed_by_name: "Coinquilino 1",
+      created_at: new Date(Date.now() - i * 60000).toISOString(),
+    }));
+
+    const createQueryMock = (dataToReturn: any[], countVal: number) => {
+      const q: any = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        lt: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn((limitVal: number) => {
+          return Promise.resolve({
+            data: dataToReturn.slice(0, limitVal),
+            count: countVal,
+            error: null,
+          });
+        }),
+      };
+      return q;
+    };
+
+    let cleaningCallCount = 0;
+    const mockFrom = vi.fn().mockImplementation((table: string) => {
+      if (table === "cleaning_tasks") {
+        cleaningCallCount++;
+        if (cleaningCallCount % 2 === 1) {
+          // Query 1: is_completed = true -> 70 compiti completati
+          return createQueryMock(mockTasks, 70);
+        } else {
+          // Query 2: is_completed = false -> 0 compiti incompleti
+          return createQueryMock([], 0);
+        }
+      }
+      if (table === "roommates") {
+        return {
+          select: vi.fn().mockReturnThis(),
+          order: vi.fn().mockResolvedValue({
+            data: [{ id: 0, name: "Coinquilino 1" }],
+            error: null,
+          }),
+        };
+      }
+      // trash_tasks ha 0 elementi
+      return createQueryMock([], 0);
+    });
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: mockFrom,
+    };
+
+    // 1. Pagina 1: limit 30, offset 0 -> deve restituire 30 elementi, totalCount 70, hasMore = true
+    const page1 = await repo.getHistory(30, 0);
+    expect(page1.items).toHaveLength(30);
+    expect(page1.totalCount).toBe(70);
+    expect(page1.hasMore).toBe(true);
+    expect(page1.items[0].id).toBe("clean-task-0");
+
+    // 2. Pagina 2: limit 30, offset 30 -> deve restituire 30 elementi successivi (30-59), totalCount 70, hasMore = true
+    const page2 = await repo.getHistory(30, 30);
+    expect(page2.items).toHaveLength(30);
+    expect(page2.totalCount).toBe(70);
+    expect(page2.hasMore).toBe(true);
+    expect(page2.items[0].id).toBe("clean-task-30");
+
+    // 3. Pagina 3: limit 30, offset 60 -> deve restituire gli ultimi 10 elementi (60-69), totalCount 70, hasMore = false
+    const page3 = await repo.getHistory(30, 60);
+    expect(page3.items).toHaveLength(10);
+    expect(page3.totalCount).toBe(70);
+    expect(page3.hasMore).toBe(false);
+    expect(page3.items[0].id).toBe("clean-task-60");
+  });
+});
+
 

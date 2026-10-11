@@ -30,6 +30,7 @@ export class ShoppingSyncController {
   private activeMutationsCount = 0;
   private needsReconciliation = false;
   private mutationQueue: Promise<void> = Promise.resolve();
+  private latestFetchVersion = 0;
   private fetcher: typeof fetch;
 
   private callbacks: ShoppingSyncCallbacks;
@@ -97,6 +98,7 @@ export class ShoppingSyncController {
   async fetchItems(isManual = false): Promise<void> {
     if (isManual) this.callbacks.onRefreshingChange?.(true);
     const reqVersion = ++this.version;
+    this.latestFetchVersion = reqVersion;
 
     try {
       const res = await this.fetcher("/api/house/shopping", { cache: "no-store" });
@@ -120,13 +122,17 @@ export class ShoppingSyncController {
       this.lastCommittedVersion = reqVersion;
       this.needsReconciliation = false;
       this.updateItems(data.items || []);
-      this.callbacks.onError(null);
+      // Azzeriamo l'avviso di errore solo se il refresh è manuale, per non cancellare errori di mutazione attivi
+      if (isManual) {
+        this.callbacks.onError(null);
+      }
     } catch (err: any) {
       if (reqVersion >= this.lastCommittedVersion) {
         this.callbacks.onError(err.message || "Errore di connessione.");
       }
     } finally {
-      if (reqVersion >= this.lastCommittedVersion) {
+      // Quando il fetch più recente termina, sblocca sempre loading e isRefreshing anche se superato da mutazioni
+      if (reqVersion === this.latestFetchVersion) {
         this.callbacks.onLoadingChange?.(false);
         this.callbacks.onRefreshingChange?.(false);
       }
@@ -179,15 +185,20 @@ export class ShoppingSyncController {
           }
 
           success = true;
-          if (addVersion >= this.lastCommittedVersion && this.activeMutationsCount === 1) {
+          if (Array.isArray(data.items) && addVersion >= this.lastCommittedVersion && this.activeMutationsCount === 1) {
             this.lastCommittedVersion = addVersion;
-            this.updateItems(data.items || []);
+            this.updateItems(data.items);
             this.needsReconciliation = false;
           } else if (data.item) {
-            // Sostituisce il tempItem con l'elemento confermato dal server
-            this.updateItems(
-              this.items.map((i) => (i.id === tempId ? data.item : i))
-            );
+            // Sostituisce il tempItem con l'elemento confermato dal server evitando duplicati
+            const alreadyExists = this.items.some((i) => i.id === data.item.id);
+            if (alreadyExists) {
+              this.updateItems(this.items.filter((i) => i.id !== tempId));
+            } else {
+              this.updateItems(
+                this.items.map((i) => (i.id === tempId ? data.item : i))
+              );
+            }
           }
         } catch (err: any) {
           // Rollback: rimuove il tempItem non confermato

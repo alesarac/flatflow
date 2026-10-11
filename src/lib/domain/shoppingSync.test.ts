@@ -382,4 +382,130 @@ describe("ShoppingSyncController Concurrency & Reconciliation", () => {
     expect(controller.getItems().some((i) => i.name === "Biscotti")).toBe(false);
     expect(errorHistory).toContain("Connessione assente");
   });
+
+  it("does not leave loading or isRefreshing stuck when a stale fetch finishes after newer mutations committed (Issue 3)", async () => {
+    let resolveStaleFetch!: (val: any) => void;
+    const stalePromise = new Promise((res) => {
+      resolveStaleFetch = res;
+    });
+
+    const refreshingHistory: boolean[] = [];
+    const loadingHistory: boolean[] = [];
+
+    const mockFetcher = vi.fn().mockImplementation((url: string, init?: any) => {
+      if (url === "/api/house/shopping" && (!init || !init.method)) {
+        return stalePromise;
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          success: true,
+          item: { ...itemA, isBought: true },
+          items: [{ ...itemA, isBought: true }, itemB],
+        }),
+      });
+    });
+
+    const controller = new ShoppingSyncController({
+      initialItems: [itemA, itemB],
+      onItemsChange: () => {},
+      onError: () => {},
+      onPendingItemIdsChange: () => {},
+      onLoadingChange: (l) => loadingHistory.push(l),
+      onRefreshingChange: (r) => refreshingHistory.push(r),
+      fetcher: mockFetcher,
+    });
+
+    // 1. Avvia un fetch manuale (isRefreshing diventa true)
+    const fetchOp = controller.fetchItems(true);
+    expect(refreshingHistory).toContain(true);
+
+    // 2. Nel frattempo una mutazione viene eseguita e committa una versione più recente
+    controller.toggleItem(itemA.id, true, 0, "Coinquilino 1");
+    await new Promise((r) => setTimeout(r, 10));
+
+    // 3. Ora risponde il fetch iniziale (obsoleto rispetto alla mutazione)
+    resolveStaleFetch({
+      ok: true,
+      json: async () => ({ items: [itemA, itemB] }),
+    });
+    await fetchOp;
+
+    // Verifica fondamentale: isRefreshing e loading NON devono rimanere bloccati a true!
+    expect(refreshingHistory[refreshingHistory.length - 1]).toBe(false);
+    expect(loadingHistory[loadingHistory.length - 1]).toBe(false);
+  });
+
+  it("preserves active error and 404 notifications during automatic reconciliation (Issue 4)", async () => {
+    let reconciliationFetchCalled = false;
+
+    const mockFetcher = vi.fn().mockImplementation((url: string, init?: any) => {
+      if (url === "/api/house/shopping" && (!init || !init.method)) {
+        reconciliationFetchCalled = true;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ items: [itemB] }),
+        });
+      }
+
+      // La mutazione restituisce 404 (prodotto cancellato concorrentemente)
+      return Promise.resolve({
+        status: 404,
+        ok: false,
+        json: async () => ({ error: "Prodotto non trovato." }),
+      });
+    });
+
+    const controller = createController(mockFetcher, [itemA, itemB]);
+
+    // Esegui toggle su itemA: fallirà con 404
+    controller.toggleItem(itemA.id, true, 0, "Coinquilino 1");
+
+    // Aspetta lo svuotamento della coda e l'esecuzione del fetch automatico di riconciliazione
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(reconciliationFetchCalled).toBe(true);
+    // Verifica fondamentale: l'avviso di errore NON deve essere stato cancellato da fetchItems automatico!
+    expect(errorHistory[errorHistory.length - 1]).toBe("Questo prodotto non è più presente nella lista.");
+  });
+
+  it("prevents duplicate items when mapping confirmed item from server (Issue 5)", async () => {
+    const serverItem: ShoppingItem = {
+      id: "shop-existing",
+      name: "Sale",
+      isBought: false,
+      addedBy: 0,
+      addedByName: "Coinquilino 1",
+      createdAt: new Date().toISOString(),
+      boughtBy: null,
+      boughtByName: null,
+      boughtAt: null,
+    };
+
+    // La lista locale contiene già "shop-existing"
+    const mockFetcher = vi.fn().mockImplementation((url: string, init?: any) => {
+      const body = JSON.parse(init.body);
+      if (body.action === "add") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            item: serverItem,
+          }),
+        });
+      }
+      return Promise.reject(new Error("Unknown route"));
+    });
+
+    const controller = createController(mockFetcher, [serverItem]);
+
+    // Aggiunge lo stesso elemento mentre ci sono mutazioni attive
+    const addOp = controller.addItem("Sale", 0, "Coinquilino 1");
+    await addOp;
+
+    // Non devono esserci duplicati con id 'shop-existing'
+    const finalItems = controller.getItems();
+    const count = finalItems.filter((i) => i.id === "shop-existing").length;
+    expect(count).toBe(1);
+  });
 });

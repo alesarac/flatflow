@@ -88,13 +88,22 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
     };
   }, [fetchItems]);
 
-  const handleAdd = (e?: React.FormEvent) => {
+  const handleAdd = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = newItemName.trim();
     if (!trimmed) return;
 
     setNewItemName("");
-    controllerRef.current?.addItem(trimmed, myRoommateId, currentRoommateName);
+    const ok = await controllerRef.current?.addItem(trimmed, myRoommateId, currentRoommateName);
+    if (!ok) {
+      // Se l'aggiunta fallisce, ripristina il testo inserito se l'utente non ha nel frattempo digitato altro
+      setNewItemName((prev) => {
+        if (!prev || prev.trim() === "") {
+          return trimmed;
+        }
+        return prev;
+      });
+    }
   };
 
   const handleToggle = (id: string, isBought: boolean) => {
