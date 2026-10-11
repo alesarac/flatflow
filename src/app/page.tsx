@@ -128,7 +128,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setCurrentTab("history")}
-                  className="min-h-[44px] px-3 py-1.5 rounded-xl text-xs font-semibold text-[#4355EC] dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all inline-flex items-center gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  className="min-h-[44px] px-3 py-1.5 rounded-xl text-xs font-semibold text-[#0f766E] dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all inline-flex items-center gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                   title="Apri storico attività"
                 >
                   <Clock className="w-3.5 h-3.5" />

@@ -137,7 +137,7 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
           className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-500 hover:text-slate-900 border border-slate-200/80 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200 active:scale-95 transition-all disabled:opacity-50 shadow-sm inline-flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           title="Aggiorna lista della spesa"
         >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-[#4355EC] dark:text-indigo-400" : ""}`} />
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-[#0f766E] dark:text-indigo-400" : ""}`} />
         </button>
       </div>
 
@@ -181,7 +181,7 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
         <button
           type="submit"
           disabled={!newItemName.trim()}
-          className="min-h-[44px] min-w-[44px] w-11 h-11 rounded-2xl bg-[#4355EC] hover:bg-[#3847cf] active:scale-95 disabled:opacity-40 text-white flex items-center justify-center shrink-0 shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="min-h-[44px] min-w-[44px] w-11 h-11 rounded-2xl bg-[#0f766E] hover:bg-[#3847cf] active:scale-95 disabled:opacity-40 text-white flex items-center justify-center shrink-0 shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           title="Aggiungi prodotto"
         >
           <Plus className="w-5 h-5 stroke-[2.5]" />
@@ -191,7 +191,7 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
       {/* 3. Elenco prodotti */}
       {loading && items.length === 0 ? (
         <div className="py-12 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
-          <Loader2 className="w-5 h-5 text-[#4355EC] dark:text-indigo-400 animate-spin" />
+          <Loader2 className="w-5 h-5 text-[#0f766E] dark:text-indigo-400 animate-spin" />
           <span>Caricamento lista in corso...</span>
         </div>
       ) : items.length === 0 ? (
@@ -250,7 +250,7 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
                             className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95 transition-all disabled:opacity-50"
                             aria-label={`Segna ${item.name} come comprato`}
                           >
-                            <div className="w-5 h-5 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-[#4355EC] dark:hover:border-indigo-400 transition-colors flex items-center justify-center" />
+                            <div className="w-5 h-5 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-[#0f766E] dark:hover:border-indigo-400 transition-colors flex items-center justify-center" />
                           </button>
 
                           {/* Nome e autore */}
@@ -317,7 +317,7 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
                             className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95 transition-all disabled:opacity-50"
                             aria-label={`Riporta ${item.name} tra quelli da comprare`}
                           >
-                            <div className="w-5 h-5 rounded-lg bg-[#4355EC] dark:bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+                            <div className="w-5 h-5 rounded-lg bg-[#0f766E] dark:bg-indigo-600 flex items-center justify-center text-white shadow-sm">
                               <Check className="w-3.5 h-3.5 stroke-[3]" />
                             </div>
                           </button>

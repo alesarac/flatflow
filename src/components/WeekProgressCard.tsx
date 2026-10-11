@@ -17,7 +17,7 @@ export function WeekProgressCard({ weekKey, cleanings }: WeekProgressCardProps) 
   return (
     <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3.5 transition-colors">
       <div className="flex items-center gap-3.5">
-        <div className="w-11 h-11 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/60 border border-indigo-100/70 dark:border-indigo-900/40 flex items-center justify-center text-[#4355EC] dark:text-indigo-400 shrink-0">
+        <div className="w-11 h-11 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/60 border border-indigo-100/70 dark:border-indigo-900/40 flex items-center justify-center text-[#0f766E] dark:text-indigo-400 shrink-0">
           <Calendar className="w-5 h-5 stroke-[2]" />
         </div>
         <div className="min-w-0">
@@ -43,11 +43,10 @@ export function WeekProgressCard({ weekKey, cleanings }: WeekProgressCardProps) 
             <div
               key={idx}
               data-testid={`progress-segment-${idx}`}
-              className={`h-2 rounded-full transition-colors duration-300 ${
-                isDone
+              className={`h-2 rounded-full transition-colors duration-300 ${isDone
                   ? "bg-[#10B981]"
                   : "bg-slate-200 dark:bg-slate-700"
-              }`}
+                }`}
             />
           ))}
         </div>
