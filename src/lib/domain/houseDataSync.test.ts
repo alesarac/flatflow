@@ -505,4 +505,169 @@ describe("HouseDataSyncController Concurrency & Race Condition Protection (Issue
     expect(finalCleaningIds.size).toBe(0);
     expect(submittingTaskIdHistory[submittingTaskIdHistory.length - 1]).toBeNull();
   });
+
+  it("prevents slow POST of previous session from altering state, counters, or inFlight status of new session via catch/finally", async () => {
+    let resolveOldPost!: (val: any) => void;
+    const oldPostPromise = new Promise((res) => {
+      resolveOldPost = res;
+    });
+
+    let resolveNewPost!: (val: any) => void;
+    const newPostPromise = new Promise((res) => {
+      resolveNewPost = res;
+    });
+
+    let postCount = 0;
+    const mockFetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/house/cleanings") {
+        postCount++;
+        if (postCount === 1) {
+          // Vecchia POST lenta della prima sessione
+          return oldPostPromise;
+        }
+        // Nuova POST della seconda sessione
+        return newPostPromise;
+      }
+      if (url === "/api/auth/logout") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ success: true }) });
+      }
+      if (url === "/api/house/data") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            ...initialHouseData,
+            myRoommateId: 1, // nuovo utente
+          }),
+        });
+      }
+      return Promise.reject(new Error("Unknown route"));
+    });
+
+    const controller = createController(mockFetcher);
+
+    // 1. Sessione 1: POST lenta avviata per task-0
+    const oldOp = controller.completeCleaning("task-0", "2026-W30", 0);
+    expect(controller.isCleaningSubmitting("task-0")).toBe(true);
+    expect(controller.getActiveMutationsCount()).toBe(1);
+
+    // 2. Logout mentre la vecchia POST è ancora in corso
+    await controller.logout();
+    expect(controller.getData()).toBeNull();
+    expect(controller.getActiveMutationsCount()).toBe(0);
+    expect(controller.isCleaningSubmitting("task-0")).toBe(false);
+
+    // 3. Nuovo login (Sessione 2)
+    controller.invalidatePendingRequests();
+    await controller.fetchData();
+    expect(controller.getData()?.myRoommateId).toBe(1);
+
+    // 4. Nuova mutazione nella Sessione 2: completa task-0
+    const newOp = controller.completeCleaning("task-0", "2026-W30", 1);
+    expect(controller.getActiveMutationsCount()).toBe(1);
+    expect(controller.isCleaningSubmitting("task-0")).toBe(true);
+    expect(submittingTaskIdHistory[submittingTaskIdHistory.length - 1]).toBe("task-0");
+
+    // 5. Completamento tardivo della vecchia POST (della Sessione 1): risposta 409
+    resolveOldPost({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: "Attività vecchia fallita" }),
+    });
+    await oldOp;
+
+    // VERIFICA FONDAMENTALE:
+    // La vecchia POST non deve aver modificato l'errore della nuova sessione,
+    // né aver decrementato activeMutationsCount, né aver rimosso task-0 da inFlightCleaningIds,
+    // né aver reimpostato submittingTaskId a null!
+    expect(errorHistory[errorHistory.length - 1]).toBeNull();
+    expect(controller.getActiveMutationsCount()).toBe(1);
+    expect(controller.isCleaningSubmitting("task-0")).toBe(true);
+    expect(submittingTaskIdHistory[submittingTaskIdHistory.length - 1]).toBe("task-0");
+
+    // 6. Ora risponde con successo la nuova mutazione della Sessione 2
+    resolveNewPost({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        week: {
+          ...mockWeek,
+          cleanings: [{ ...mockCleaning0, isCompleted: true, completedBy: 1 }, mockCleaning1],
+        },
+      }),
+    });
+    await newOp;
+
+    // Ora che la nuova mutazione ha completato regolarmente, lo stato si aggiorna
+    expect(controller.getActiveMutationsCount()).toBe(0);
+    expect(controller.isCleaningSubmitting("task-0")).toBe(false);
+    expect(submittingTaskIdHistory[submittingTaskIdHistory.length - 1]).toBeNull();
+    expect(controller.getData()?.currentWeek.cleanings[0].isCompleted).toBe(true);
+    expect(controller.getData()?.currentWeek.cleanings[0].completedBy).toBe(1);
+  });
+
+  it("prevents slow POST rejection/network error from injecting errors or clearing inFlight state in new session", async () => {
+    let rejectOldPost!: (err: any) => void;
+    const oldPostPromise = new Promise((_, rej) => {
+      rejectOldPost = rej;
+    });
+
+    let resolveNewPost!: (val: any) => void;
+    const newPostPromise = new Promise((res) => {
+      resolveNewPost = res;
+    });
+
+    let postCount = 0;
+    const mockFetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/house/cleanings") {
+        postCount++;
+        if (postCount === 1) {
+          return oldPostPromise;
+        }
+        return newPostPromise;
+      }
+      if (url === "/api/auth/logout") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ success: true }) });
+      }
+      return Promise.reject(new Error("Unknown route"));
+    });
+
+    const controller = createController(mockFetcher);
+
+    // 1. Sessione 1: avvia vecchia POST
+    const oldOp = controller.completeCleaning("task-0", "2026-W30", 0);
+
+    // 2. Logout e nuovo login
+    await controller.logout();
+    controller.invalidatePendingRequests();
+
+    // 3. Nuova mutazione nella Sessione 2
+    const newOp = controller.completeCleaning("task-1", "2026-W30", 1);
+    expect(controller.getActiveMutationsCount()).toBe(1);
+    expect(controller.isCleaningSubmitting("task-1")).toBe(true);
+
+    // 4. La vecchia POST fallisce con errore di rete (catch block!)
+    rejectOldPost(new Error("Network failed"));
+    await oldOp;
+
+    // Verifica fondamentale: nessun errore iniettato nella nuova sessione, e task-1 ancora inFlight!
+    expect(errorHistory[errorHistory.length - 1]).toBeNull();
+    expect(controller.getActiveMutationsCount()).toBe(1);
+    expect(controller.isCleaningSubmitting("task-1")).toBe(true);
+
+    // 5. Nuova mutazione termina con successo
+    resolveNewPost({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        week: mockWeek,
+      }),
+    });
+    await newOp;
+
+    expect(controller.getActiveMutationsCount()).toBe(0);
+    expect(controller.isCleaningSubmitting("task-1")).toBe(false);
+  });
 });

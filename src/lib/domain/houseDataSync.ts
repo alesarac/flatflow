@@ -35,6 +35,7 @@ export class HouseDataSyncController {
   private inFlightCleaningIds = new Set<string>();
   private inFlightTrash = false;
   private needsReconciliation = false;
+  private sessionEpoch = 0;
   private callbacks: HouseDataSyncCallbacks;
   private fetcher: typeof fetch;
 
@@ -76,6 +77,7 @@ export class HouseDataSyncController {
   }
 
   invalidatePendingRequests(): void {
+    this.sessionEpoch++;
     this.lastCommittedVersion = ++this.version;
     this.latestFetchVersion = this.version;
     this.inFlightCleaningIds.clear();
@@ -97,11 +99,14 @@ export class HouseDataSyncController {
   }
 
   async fetchData(isManual = false): Promise<void> {
+    const epoch = this.sessionEpoch;
     const reqVersion = ++this.version;
     this.latestFetchVersion = reqVersion;
 
     try {
       const res = await this.fetcher("/api/house/data", { cache: "no-store" });
+      if (this.sessionEpoch !== epoch) return;
+
       if (res.status === 401) {
         if (reqVersion >= this.lastCommittedVersion) {
           this.lastCommittedVersion = reqVersion;
@@ -118,6 +123,7 @@ export class HouseDataSyncController {
       }
 
       const json: HouseData = await res.json();
+      if (this.sessionEpoch !== epoch) return;
 
       // Scarta la risposta se obsoleta rispetto a versioni già applicate
       if (reqVersion < this.lastCommittedVersion) {
@@ -141,11 +147,12 @@ export class HouseDataSyncController {
         this.callbacks.onError(null);
       }
     } catch (err: any) {
+      if (this.sessionEpoch !== epoch) return;
       if (reqVersion >= this.lastCommittedVersion) {
         this.callbacks.onError(err.message || "Errore di connessione");
       }
     } finally {
-      if (reqVersion === this.latestFetchVersion) {
+      if (this.sessionEpoch === epoch && reqVersion === this.latestFetchVersion) {
         this.callbacks.onLoadingChange(false);
       }
     }
@@ -159,6 +166,7 @@ export class HouseDataSyncController {
   }
 
   async completeCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     this.callbacks.onError(null);
     const targetRoommate = this.data?.roommates.find((r) => r.id === roommateId);
 
@@ -199,15 +207,18 @@ export class HouseDataSyncController {
         }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       const resJson = await res.json();
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         const msg = resJson.error || "Impossibile completare l'attività";
         this.callbacks.onError(msg);
         this.needsReconciliation = true;
         return false;
       }
 
-      if (resJson.week && this.data) {
+      if (resJson.week && this.data && this.sessionEpoch === epoch) {
         if (mutVersion >= this.lastCommittedVersion) {
           this.lastCommittedVersion = mutVersion;
           // Preserva lo stato ottimistico di altre attività in volo
@@ -232,19 +243,23 @@ export class HouseDataSyncController {
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante il salvataggio.");
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.inFlightCleaningIds.delete(taskId);
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.notifySubmittingCleaningIds();
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.inFlightCleaningIds.delete(taskId);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.notifySubmittingCleaningIds();
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
   async declineCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     this.callbacks.onError(null);
     // Aggiornamento ottimistico immediato
     if (this.data && this.data.currentWeek) {
@@ -279,15 +294,18 @@ export class HouseDataSyncController {
         }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       const resJson = await res.json();
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         const msg = resJson.error || "Impossibile rinunciare all'attività";
         this.callbacks.onError(msg);
         this.needsReconciliation = true;
         return false;
       }
 
-      if (resJson.week && this.data && mutVersion >= this.lastCommittedVersion) {
+      if (resJson.week && this.data && this.sessionEpoch === epoch && mutVersion >= this.lastCommittedVersion) {
         this.lastCommittedVersion = mutVersion;
         const mergedCleanings = resJson.week.cleanings.map((serverTask: CleaningTask) => {
           if (serverTask.id !== taskId && this.inFlightCleaningIds.has(serverTask.id)) {
@@ -306,19 +324,23 @@ export class HouseDataSyncController {
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante la rinuncia.");
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.inFlightCleaningIds.delete(taskId);
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.notifySubmittingCleaningIds();
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.inFlightCleaningIds.delete(taskId);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.notifySubmittingCleaningIds();
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
   async uncompleteCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     this.callbacks.onError(null);
     if (this.data && this.data.currentWeek) {
       const updatedCleanings = this.data.currentWeek.cleanings.map((c) =>
@@ -356,15 +378,18 @@ export class HouseDataSyncController {
         }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       const resJson = await res.json();
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         const msg = resJson.error || "Impossibile annullare il completamento dell'attività";
         this.callbacks.onError(msg);
         this.needsReconciliation = true;
         return false;
       }
 
-      if (resJson.week && this.data && mutVersion >= this.lastCommittedVersion) {
+      if (resJson.week && this.data && this.sessionEpoch === epoch && mutVersion >= this.lastCommittedVersion) {
         this.lastCommittedVersion = mutVersion;
         const mergedCleanings = resJson.week.cleanings.map((serverTask: CleaningTask) => {
           if (serverTask.id !== taskId && this.inFlightCleaningIds.has(serverTask.id)) {
@@ -383,19 +408,23 @@ export class HouseDataSyncController {
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante l'annullamento.");
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.inFlightCleaningIds.delete(taskId);
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.notifySubmittingCleaningIds();
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.inFlightCleaningIds.delete(taskId);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.notifySubmittingCleaningIds();
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
   async claimCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     this.callbacks.onError(null);
     const targetRoommate = this.data?.roommates.find((r) => r.id === roommateId);
     if (this.data && this.data.currentWeek) {
@@ -433,15 +462,18 @@ export class HouseDataSyncController {
         }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       const resJson = await res.json();
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         const msg = resJson.error || "Impossibile prendere in carico l'attività";
         this.callbacks.onError(msg);
         this.needsReconciliation = true;
         return false;
       }
 
-      if (resJson.week && this.data && mutVersion >= this.lastCommittedVersion) {
+      if (resJson.week && this.data && this.sessionEpoch === epoch && mutVersion >= this.lastCommittedVersion) {
         this.lastCommittedVersion = mutVersion;
         const mergedCleanings = resJson.week.cleanings.map((serverTask: CleaningTask) => {
           if (serverTask.id !== taskId && this.inFlightCleaningIds.has(serverTask.id)) {
@@ -460,19 +492,23 @@ export class HouseDataSyncController {
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante la presa in carico.");
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.inFlightCleaningIds.delete(taskId);
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.notifySubmittingCleaningIds();
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.inFlightCleaningIds.delete(taskId);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.notifySubmittingCleaningIds();
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
   async reportTrash(): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     this.callbacks.onError(null);
     if (this.data) {
       const nextAssigned =
@@ -504,15 +540,18 @@ export class HouseDataSyncController {
         body: JSON.stringify({ action: "report" }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       const resJson = await res.json();
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         const msg = resJson.error || "Errore nella segnalazione della spazzatura";
         this.callbacks.onError(msg);
         this.needsReconciliation = true;
         return false;
       }
 
-      if (resJson.openTrashTask !== undefined && resJson.trashQueue && this.data) {
+      if (resJson.openTrashTask !== undefined && resJson.trashQueue && this.data && this.sessionEpoch === epoch) {
         if (mutVersion >= this.lastCommittedVersion) {
           this.lastCommittedVersion = mutVersion;
           this.updateData({
@@ -524,19 +563,23 @@ export class HouseDataSyncController {
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante la segnalazione.");
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.inFlightTrash = false;
-      this.callbacks.onIsTrashSubmittingChange?.(false);
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.inFlightTrash = false;
+        this.callbacks.onIsTrashSubmittingChange?.(false);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
   async declineTrash(roommateId: number): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     this.callbacks.onError(null);
     if (this.data && this.data.openTrashTask) {
       const currentTask = this.data.openTrashTask;
@@ -567,15 +610,18 @@ export class HouseDataSyncController {
         body: JSON.stringify({ action: "decline", roommateId }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       const resJson = await res.json();
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         const msg = resJson.error || "Impossibile rinunciare al turno di spazzatura";
         this.callbacks.onError(msg);
         this.needsReconciliation = true;
         return false;
       }
 
-      if (resJson.openTrashTask !== undefined && resJson.trashQueue && this.data) {
+      if (resJson.openTrashTask !== undefined && resJson.trashQueue && this.data && this.sessionEpoch === epoch) {
         if (mutVersion >= this.lastCommittedVersion) {
           this.lastCommittedVersion = mutVersion;
           this.updateData({
@@ -587,19 +633,23 @@ export class HouseDataSyncController {
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante la rinuncia.");
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.inFlightTrash = false;
-      this.callbacks.onIsTrashSubmittingChange?.(false);
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.inFlightTrash = false;
+        this.callbacks.onIsTrashSubmittingChange?.(false);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
   async completeTrash(roommateId: number): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     this.callbacks.onError(null);
     if (this.data) {
       this.updateData({ ...this.data, openTrashTask: null });
@@ -618,15 +668,18 @@ export class HouseDataSyncController {
         body: JSON.stringify({ action: "complete", roommateId }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       const resJson = await res.json();
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         const msg = resJson.error || "Impossibile completare la spazzatura";
         this.callbacks.onError(msg);
         this.needsReconciliation = true;
         return false;
       }
 
-      if (resJson.trashQueue && this.data) {
+      if (resJson.trashQueue && this.data && this.sessionEpoch === epoch) {
         if (mutVersion >= this.lastCommittedVersion) {
           this.lastCommittedVersion = mutVersion;
           this.updateData({
@@ -638,19 +691,23 @@ export class HouseDataSyncController {
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante il salvataggio.");
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.inFlightTrash = false;
-      this.callbacks.onIsTrashSubmittingChange?.(false);
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.inFlightTrash = false;
+        this.callbacks.onIsTrashSubmittingChange?.(false);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
   async claimTrash(roommateId: number): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     this.callbacks.onError(null);
     if (this.data && this.data.openTrashTask) {
       this.updateData({
@@ -676,15 +733,18 @@ export class HouseDataSyncController {
         body: JSON.stringify({ action: "claim", roommateId }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       const resJson = await res.json();
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         const msg = resJson.error || "Impossibile prendere in carico la spazzatura";
         this.callbacks.onError(msg);
         this.needsReconciliation = true;
         return false;
       }
 
-      if (resJson.openTrashTask !== undefined && resJson.trashQueue && this.data) {
+      if (resJson.openTrashTask !== undefined && resJson.trashQueue && this.data && this.sessionEpoch === epoch) {
         if (mutVersion >= this.lastCommittedVersion) {
           this.lastCommittedVersion = mutVersion;
           this.updateData({
@@ -696,19 +756,23 @@ export class HouseDataSyncController {
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante la presa in carico.");
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.inFlightTrash = false;
-      this.callbacks.onIsTrashSubmittingChange?.(false);
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.inFlightTrash = false;
+        this.callbacks.onIsTrashSubmittingChange?.(false);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
   async updateRoommateName(id: number, name: string): Promise<boolean> {
+    const epoch = this.sessionEpoch;
     const trimmed = name.trim();
     if (this.data) {
       this.updateData({
@@ -730,22 +794,28 @@ export class HouseDataSyncController {
         body: JSON.stringify({ id, name: trimmed }),
       });
 
+      if (this.sessionEpoch !== epoch) return false;
+
       if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
         this.needsReconciliation = true;
         return false;
       }
 
-      if (mutVersion >= this.lastCommittedVersion) {
+      if (mutVersion >= this.lastCommittedVersion && this.sessionEpoch === epoch) {
         this.lastCommittedVersion = mutVersion;
       }
       return true;
     } catch {
+      if (this.sessionEpoch !== epoch) return false;
       this.needsReconciliation = true;
       return false;
     } finally {
-      this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
-      this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
-      this.checkReconciliation();
+      if (this.sessionEpoch === epoch) {
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
     }
   }
 
