@@ -1,5 +1,12 @@
 import { HouseData, CleaningTask, TrashTask, Roommate } from "./types";
-import { declineCleaningTask, declineTrash, claimTrashTask, reportTrash } from "./logic";
+import {
+  canUndoCleaningDecline,
+  declineCleaningTask,
+  declineTrash,
+  claimTrashTask,
+  reportTrash,
+  undoDeclineCleaningTask,
+} from "./logic";
 
 export interface HouseDataSyncCallbacks {
   onDataChange: (data: HouseData | null) => void;
@@ -326,6 +333,87 @@ export class HouseDataSyncController {
     } catch {
       if (this.sessionEpoch !== epoch) return false;
       this.callbacks.onError("Errore di rete durante la rinuncia.");
+      this.needsReconciliation = true;
+      return false;
+    } finally {
+      if (this.sessionEpoch === epoch) {
+        this.inFlightCleaningIds.delete(taskId);
+        this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
+        this.notifySubmittingCleaningIds();
+        this.callbacks.onIsSubmittingChange(this.activeMutationsCount > 0);
+        this.checkReconciliation();
+      }
+    }
+  }
+
+  async undoDeclineCleaning(taskId: string, weekKey: string, roommateId: number): Promise<boolean> {
+    const epoch = this.sessionEpoch;
+    this.callbacks.onError(null);
+    // Aggiornamento ottimistico immediato
+    if (this.data && this.data.currentWeek) {
+      const task = this.data.currentWeek.cleanings.find((c) => c.id === taskId);
+      if (task && canUndoCleaningDecline(task, roommateId)) {
+        const updatedTask = undoDeclineCleaningTask(task, roommateId, this.data.roommates);
+        const updatedCleanings = this.data.currentWeek.cleanings.map((c) =>
+          c.id === taskId ? updatedTask : c
+        );
+        this.updateData({
+          ...this.data,
+          currentWeek: { ...this.data.currentWeek, cleanings: updatedCleanings },
+        });
+      }
+    }
+
+    this.activeMutationsCount++;
+    this.inFlightCleaningIds.add(taskId);
+    this.notifySubmittingCleaningIds();
+    this.callbacks.onIsSubmittingChange(true);
+    const mutVersion = ++this.version;
+
+    try {
+      const res = await this.fetcher("/api/house/cleanings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "undo_decline",
+          taskId,
+          weekKey,
+          roommateId,
+        }),
+      });
+
+      if (this.sessionEpoch !== epoch) return false;
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        if (this.sessionEpoch !== epoch) return false;
+        const msg = resJson.error || "Impossibile annullare la rinuncia all'attività";
+        this.callbacks.onError(msg);
+        this.needsReconciliation = true;
+        return false;
+      }
+
+      if (resJson.week && this.data && this.sessionEpoch === epoch && mutVersion >= this.lastCommittedVersion) {
+        this.lastCommittedVersion = mutVersion;
+        const mergedCleanings = resJson.week.cleanings.map((serverTask: CleaningTask) => {
+          if (serverTask.id !== taskId && this.inFlightCleaningIds.has(serverTask.id)) {
+            const currentLocal = this.data?.currentWeek?.cleanings.find(
+              (c) => c.id === serverTask.id
+            );
+            return currentLocal || serverTask;
+          }
+          return serverTask;
+        });
+
+        this.updateData({
+          ...this.data,
+          currentWeek: { ...resJson.week, cleanings: mergedCleanings },
+        });
+      }
+      return true;
+    } catch {
+      if (this.sessionEpoch !== epoch) return false;
+      this.callbacks.onError("Errore di rete durante l'annullamento della rinuncia.");
       this.needsReconciliation = true;
       return false;
     } finally {

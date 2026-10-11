@@ -17,6 +17,8 @@ import {
   completeTrash,
   determineCleaningAssignee,
   uncompleteCleaningTask,
+  canUndoCleaningDecline,
+  undoDeclineCleaningTask,
   claimCleaningTask,
   claimTrashTask,
   getWeeklyProgressBarSegments,
@@ -269,6 +271,110 @@ describe("Cleaning Completion Undo (Uncomplete)", () => {
     expect(() => uncompleteCleaningTask(cleanings[0], roommates)).toThrow(
       "L'attività non risulta completata."
     );
+  });
+});
+
+describe("Undoing Cleaning Decline Domain Logic", () => {
+  const roommates = [
+    { id: 0, name: "Coinquilino 1" },
+    { id: 1, name: "Coinquilino 2" },
+    { id: 2, name: "Coinquilino 3" },
+  ];
+
+  it("allows original assignee to undo decline when no subsequent action occurred", () => {
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    const task0 = cleanings[0]; // base assignment is 0
+    expect(task0.assignedTo).toBe(0);
+
+    const declined = declineCleaningTask(task0, 0, roommates);
+    expect(declined.assignedTo).toBe(1);
+    expect(declined.declinedBy).toEqual([0]);
+
+    // Roommate 0 can undo
+    expect(canUndoCleaningDecline(declined, 0)).toBe(true);
+    // Other roommates cannot undo
+    expect(canUndoCleaningDecline(declined, 1)).toBe(false);
+    expect(canUndoCleaningDecline(declined, 2)).toBe(false);
+
+    const undone = undoDeclineCleaningTask(declined, 0, roommates);
+    expect(undone.assignedTo).toBe(0);
+    expect(undone.assignedToName).toBe("Coinquilino 1");
+    expect(undone.declinedBy).toEqual([]);
+    expect(undone.isCompleted).toBe(false);
+  });
+
+  it("prevents previous decliner from undoing if the new assignee also declined", () => {
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    let task = cleanings[0]; // assigned to 0
+    task = declineCleaningTask(task, 0, roommates); // assigned to 1
+    task = declineCleaningTask(task, 1, roommates); // assigned to 2
+
+    // Roommate 0 cannot undo because roommate 1 already acted
+    expect(canUndoCleaningDecline(task, 0)).toBe(false);
+    expect(() => undoDeclineCleaningTask(task, 0, roommates)).toThrow(
+      "Impossibile annullare la rinuncia per questa attività."
+    );
+
+    // Roommate 1 can undo because roommate 2 hasn't acted yet
+    expect(canUndoCleaningDecline(task, 1)).toBe(true);
+
+    const undone1 = undoDeclineCleaningTask(task, 1, roommates);
+    expect(undone1.assignedTo).toBe(1);
+    expect(undone1.assignedToName).toBe("Coinquilino 2");
+    expect(undone1.declinedBy).toEqual([0]);
+
+    // Now that roommate 1 undid, roommate 0 can undo again!
+    expect(canUndoCleaningDecline(undone1, 0)).toBe(true);
+    const undone0 = undoDeclineCleaningTask(undone1, 0, roommates);
+    expect(undone0.assignedTo).toBe(0);
+    expect(undone0.declinedBy).toEqual([]);
+  });
+
+  it("handles undo when all roommates had declined and task was unassigned", () => {
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    let task = cleanings[0]; // 0
+    task = declineCleaningTask(task, 0, roommates); // 1
+    task = declineCleaningTask(task, 1, roommates); // 2
+    task = declineCleaningTask(task, 2, roommates); // null
+
+    expect(task.assignedTo).toBeNull();
+    expect(task.declinedBy).toEqual([0, 1, 2]);
+
+    // Only roommate 2 can undo
+    expect(canUndoCleaningDecline(task, 0)).toBe(false);
+    expect(canUndoCleaningDecline(task, 1)).toBe(false);
+    expect(canUndoCleaningDecline(task, 2)).toBe(true);
+
+    const undone2 = undoDeclineCleaningTask(task, 2, roommates);
+    expect(undone2.assignedTo).toBe(2);
+    expect(undone2.assignedToName).toBe("Coinquilino 3");
+    expect(undone2.declinedBy).toEqual([0, 1]);
+  });
+
+  it("prevents undo if task was completed or claimed by another roommate", () => {
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    let task = cleanings[0];
+    task = declineCleaningTask(task, 0, roommates); // assigned to 1
+
+    // Completed by substitute
+    const completed = {
+      ...task,
+      isCompleted: true,
+      completedAt: new Date().toISOString(),
+      completedByName: "Coinquilino 2",
+      completedBy: 1,
+    };
+    expect(canUndoCleaningDecline(completed, 0)).toBe(false);
+    expect(() => undoDeclineCleaningTask(completed, 0, roommates)).toThrow();
+
+    // Claimed after unassigned
+    let unassignedTask = declineCleaningTask(task, 1, roommates);
+    unassignedTask = declineCleaningTask(unassignedTask, 2, roommates);
+    // Roommate 0 claims
+    const claimed = claimCleaningTask(unassignedTask, 0, roommates);
+    // Roommate 2 was last before claim, but can no longer undo because 0 acted (claimed)
+    expect(canUndoCleaningDecline(claimed, 2)).toBe(false);
+    expect(() => undoDeclineCleaningTask(claimed, 2, roommates)).toThrow();
   });
 });
 

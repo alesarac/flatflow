@@ -885,6 +885,251 @@ describe("API Routes Integration Tests (P0, P1, P2)", () => {
     expect(finalTask.assignedTo).toBe(substituteId);
     expect(finalTask.declinedBy).toContain(originalAssignee);
   });
+
+  it("allows a roommate to undo their decline ('Non posso') and restores previous task state", async () => {
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[0];
+    const originalAssignee = task.assignedTo!;
+
+    // 1. L'assegnatario rinuncia con 'decline'
+    const declineRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(originalAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: originalAssignee,
+        }),
+      })
+    );
+    expect(declineRes.status).toBe(200);
+    const declinedWeek = (await declineRes.json()).week;
+    const declinedTask = declinedWeek.cleanings.find((t: any) => t.id === task.id);
+    expect(declinedTask.assignedTo).not.toBe(originalAssignee);
+    expect(declinedTask.declinedBy).toEqual([originalAssignee]);
+
+    // 2. L'assegnatario annulla la rinuncia con 'undo_decline'
+    const undoRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(originalAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "undo_decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: originalAssignee,
+        }),
+      })
+    );
+    expect(undoRes.status).toBe(200);
+    const restoredWeek = (await undoRes.json()).week;
+    const restoredTask = restoredWeek.cleanings.find((t: any) => t.id === task.id);
+    expect(restoredTask.assignedTo).toBe(originalAssignee);
+    expect(restoredTask.declinedBy).toEqual([]);
+    expect(restoredTask.isCompleted).toBe(false);
+  });
+
+  it("verifies server-side authorization and restrictions for undo_decline (profile mismatch, past week, impersonation)", async () => {
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[1];
+    const originalAssignee = task.assignedTo!;
+    const otherRoommate = (originalAssignee + 1) % 3;
+
+    // 1. Rinuncia legittima
+    await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(originalAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: originalAssignee,
+        }),
+      })
+    );
+
+    // Impersonation (token originale ma body con ID altrui) -> 403
+    const impersonateRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(originalAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "undo_decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: otherRoommate,
+        }),
+      })
+    );
+    expect(impersonateRes.status).toBe(403);
+
+    // Profilo non autorizzato (token di un coinquilino che non ha rinunciato) -> 409
+    const unauthorizedRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(otherRoommate)}`,
+        },
+        body: JSON.stringify({
+          action: "undo_decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: otherRoommate,
+        }),
+      })
+    );
+    expect(unauthorizedRes.status).toBe(409);
+
+    // Settimana passata -> 400
+    const pastWeekRes = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(originalAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "undo_decline",
+          weekKey: "2026-01-05",
+          taskId: task.id,
+          roommateId: originalAssignee,
+        }),
+      })
+    );
+    expect(pastWeekRes.status).toBe(400);
+
+    // Cleanup: ripristina il compito
+    await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(originalAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "undo_decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: originalAssignee,
+        }),
+      })
+    );
+  });
+
+  it("blocks undo_decline if the new assignee has already acted (declined or completed)", async () => {
+    const currentWeekKey = getWeekKey(new Date());
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[2];
+    const firstAssignee = task.assignedTo!;
+
+    // 1. Primo coinquilino rinuncia
+    const decline1Res = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(firstAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: firstAssignee,
+        }),
+      })
+    );
+    const secondAssignee = (await decline1Res.json()).week.cleanings.find((t: any) => t.id === task.id).assignedTo;
+
+    // 2. Secondo coinquilino rinuncia a sua volta
+    const decline2Res = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(secondAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: secondAssignee,
+        }),
+      })
+    );
+    expect(decline2Res.status).toBe(200);
+
+    // 3. Il primo coinquilino tenta di annullare la vecchia rinuncia -> 409 Conflict
+    const blockedUndo1 = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(firstAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "undo_decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: firstAssignee,
+        }),
+      })
+    );
+    expect(blockedUndo1.status).toBe(409);
+
+    // 4. Il secondo coinquilino (l'ultimo) PUÒ annullare la sua rinuncia
+    const validUndo2 = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(secondAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "undo_decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: secondAssignee,
+        }),
+      })
+    );
+    expect(validUndo2.status).toBe(200);
+
+    // 5. Ora che il secondo ha annullato, il primo può a sua volta annullare la prima rinuncia!
+    const validUndo1 = await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE_NAME}=${createSessionToken(firstAssignee)}`,
+        },
+        body: JSON.stringify({
+          action: "undo_decline",
+          weekKey: currentWeekKey,
+          taskId: task.id,
+          roommateId: firstAssignee,
+        }),
+      })
+    );
+    expect(validUndo1.status).toBe(200);
+  });
 });
 
 describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {

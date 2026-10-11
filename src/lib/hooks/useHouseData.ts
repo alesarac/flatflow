@@ -93,6 +93,12 @@ export function useHouseData() {
     return (await controllerRef.current?.declineCleaning(taskId, weekKey, targetId)) ?? false;
   };
 
+  const undoDeclineCleaning = async (taskId: string, weekKey: string, roommateId?: number) => {
+    const targetId = roommateId ?? myRoommateId;
+    if (targetId === null) return false;
+    return (await controllerRef.current?.undoDeclineCleaning(taskId, weekKey, targetId)) ?? false;
+  };
+
   const uncompleteCleaning = async (taskId: string, weekKey: string, roommateId?: number) => {
     const targetId = roommateId ?? myRoommateId;
     if (targetId === null) return false;
@@ -153,6 +159,7 @@ export function useHouseData() {
     resetSession: invalidatePendingRequests,
     completeCleaning,
     declineCleaning,
+    undoDeclineCleaning,
     claimCleaning,
     uncompleteCleaning,
     reportTrash: reportTrashAction,

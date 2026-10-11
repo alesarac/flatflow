@@ -28,6 +28,7 @@ export default function HomePage() {
     invalidatePendingRequests,
     completeCleaning,
     declineCleaning,
+    undoDeclineCleaning,
     claimCleaning,
     uncompleteCleaning,
     reportTrash,
@@ -155,6 +156,9 @@ export default function HomePage() {
                     }}
                     onUncomplete={(taskId) => {
                       uncompleteCleaning(taskId, currentWeek.weekKey, myRoommateId);
+                    }}
+                    onUndoDecline={(taskId, rId) => {
+                      undoDeclineCleaning(taskId, currentWeek.weekKey, rId);
                     }}
                   />
                 ))}

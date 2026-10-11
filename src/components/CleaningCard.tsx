@@ -1,6 +1,7 @@
 "use client";
 
 import { AREAS, CleaningTask, Roommate } from "../lib/domain/types";
+import { canUndoCleaningDecline } from "../lib/domain/logic";
 import {
   UtensilsCrossed,
   Sparkles,
@@ -22,6 +23,7 @@ interface CleaningCardProps {
   onDecline: (taskId: string, roommateId: number) => void;
   onClaim: (taskId: string, roommateId: number) => void;
   onUncomplete?: (taskId: string) => void;
+  onUndoDecline?: (taskId: string, roommateId: number) => void;
 }
 
 export function CleaningCard({
@@ -33,22 +35,30 @@ export function CleaningCard({
   onDecline,
   onClaim,
   onUncomplete,
+  onUndoDecline,
 }: CleaningCardProps) {
   const area = AREAS.find((a) => a.id === task.areaId) || AREAS[0];
   const assignedRoommate = roommates.find((r) => r.id === task.assignedTo);
   const isAssignedToMe = myRoommateId !== null && task.assignedTo === myRoommateId;
   const isUnassigned = task.assignedTo === null;
-  const canClaim = isUnassigned && myRoommateId !== null;
 
   // Consenti l'annullamento solo al profilo che ha registrato il completamento via ID stabile
   const myRoommate = myRoommateId !== null ? roommates.find((r) => r.id === myRoommateId) : undefined;
-  const canUndo = Boolean(
+  const canUndoComplete = Boolean(
     task.isCompleted &&
       myRoommateId !== null &&
       (task.completedBy !== null && task.completedBy !== undefined
         ? task.completedBy === myRoommateId
         : myRoommate && task.completedByName === myRoommate.name)
   );
+
+  const canUndoDecline = Boolean(
+    !task.isCompleted &&
+      myRoommateId !== null &&
+      canUndoCleaningDecline(task, myRoommateId)
+  );
+
+  const canClaim = isUnassigned && myRoommateId !== null && !canUndoDecline;
 
   // Stili e palette pastello specifici dello stato
   const getCardStyle = () => {
@@ -146,7 +156,7 @@ export function CleaningCard({
       </div>
 
       {/* Azione Annulla: solo per chi ha completato l'attività, su riga separata in basso a destra per non comprimere il titolo */}
-      {task.isCompleted && canUndo && onUncomplete && (
+      {task.isCompleted && canUndoComplete && onUncomplete && (
         <div className="mt-2.5 flex justify-end">
           <button
             type="button"
@@ -154,6 +164,26 @@ export function CleaningCard({
             disabled={isSubmitting}
             className="min-h-[44px] min-w-[44px] px-3 py-2 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium inline-flex items-center justify-center gap-1.5 transition-all active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl"
             title="Annulla completamento"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Undo2 className="w-4 h-4 text-slate-400 dark:text-slate-400" />
+            )}
+            <span>Annulla</span>
+          </button>
+        </div>
+      )}
+
+      {/* Azione Annulla: solo per chi ha effettuato la rinuncia e nessun altro ha agito */}
+      {!task.isCompleted && canUndoDecline && onUndoDecline && (
+        <div className="mt-2.5 flex justify-end">
+          <button
+            type="button"
+            onClick={() => onUndoDecline(task.id, myRoommateId!)}
+            disabled={isSubmitting}
+            className="min-h-[44px] min-w-[44px] px-3 py-2 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium inline-flex items-center justify-center gap-1.5 transition-all active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl"
+            title="Annulla rinuncia"
           >
             {isSubmitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />

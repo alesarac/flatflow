@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { getRequestSession } from "@/lib/auth/server";
 import { getRepository } from "@/lib/db";
 import {
+  canUndoCleaningDecline,
   claimCleaningTask,
   declineCleaningTask,
   getWeekKey,
   uncompleteCleaningTask,
+  undoDeclineCleaningTask,
 } from "@/lib/domain/logic";
 import { CleaningTask } from "@/lib/domain/types";
 
@@ -246,6 +248,52 @@ export async function POST(req: Request) {
     if (!updated) {
       return NextResponse.json(
         { error: "L'attività è già stata annullata o modificata da un'altra operazione." },
+        { status: 409 }
+      );
+    }
+
+    const updatedWeek = await repo.getWeekState(weekKey);
+    return NextResponse.json({ success: true, week: updatedWeek });
+  }
+
+  if (action === "undo_decline") {
+    const roommate = roommates.find((r) => r.id === roommateId);
+    if (!roommate) {
+      return NextResponse.json({ error: "Coinquilino non trovato" }, { status: 404 });
+    }
+
+    const task = weekState.cleanings.find((t) => t.id === taskId);
+    if (!task) {
+      return NextResponse.json({ error: "Attività non trovata" }, { status: 404 });
+    }
+
+    if (task.isCompleted) {
+      return NextResponse.json(
+        { error: "L'attività è già stata completata; non è più possibile annullare la rinuncia." },
+        { status: 409 }
+      );
+    }
+
+    if (!canUndoCleaningDecline(task, roommateId)) {
+      return NextResponse.json(
+        {
+          error:
+            "Non è possibile annullare la rinuncia: un altro coinquilino ha già agito o non sei l'autore dell'ultima rinuncia.",
+        },
+        { status: 409 }
+      );
+    }
+
+    const updatedTask = undoDeclineCleaningTask(task, roommateId, roommates);
+
+    const updated = await repo.updateCleaningTask(updatedTask, {
+      isCompleted: false,
+      assignedTo: task.assignedTo,
+    });
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "L'attività è già stata modificata o completata da un'altra operazione." },
         { status: 409 }
       );
     }

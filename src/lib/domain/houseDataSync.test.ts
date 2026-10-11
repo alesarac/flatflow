@@ -670,4 +670,116 @@ describe("HouseDataSyncController Concurrency & Race Condition Protection (Issue
     expect(controller.getActiveMutationsCount()).toBe(0);
     expect(controller.isCleaningSubmitting("task-1")).toBe(false);
   });
+
+  it("optimistically restores task assignment on undoDeclineCleaning and manages submitting state", async () => {
+    // Stato iniziale con task-0 già rifiutato da 0 e assegnato a 1
+    const declinedCleaning0: CleaningTask = {
+      ...mockCleaning0,
+      assignedTo: 1,
+      assignedToName: "Coinquilino 2",
+      declinedBy: [0],
+    };
+    const declinedWeek: WeekState = {
+      ...mockWeek,
+      cleanings: [declinedCleaning0, mockCleaning1],
+    };
+    const declinedHouseData: HouseData = {
+      ...initialHouseData,
+      currentWeek: declinedWeek,
+    };
+
+    let resolveUndoPost!: (val: any) => void;
+    const undoPromise = new Promise((res) => {
+      resolveUndoPost = res;
+    });
+
+    const mockFetcher = vi.fn().mockImplementation((url: string, opts?: any) => {
+      if (url === "/api/house/cleanings") {
+        const body = JSON.parse(opts.body);
+        if (body.action === "undo_decline") {
+          return undoPromise;
+        }
+      }
+      return Promise.reject(new Error("Unknown route"));
+    });
+
+    const controller = createController(mockFetcher, declinedHouseData);
+
+    const undoOp = controller.undoDeclineCleaning("task-0", "2026-W30", 0);
+
+    // 1. Aggiornamento ottimistico immediato: compito riassegnato a 0 e declinedBy vuoto
+    const currentLocal = (controller as any).data.currentWeek.cleanings.find(
+      (c: CleaningTask) => c.id === "task-0"
+    );
+    expect(currentLocal.assignedTo).toBe(0);
+    expect(currentLocal.declinedBy).toEqual([]);
+    expect(controller.isCleaningSubmitting("task-0")).toBe(true);
+
+    // 2. Risoluzione server con successo
+    const restoredWeek: WeekState = {
+      ...mockWeek,
+      cleanings: [
+        { ...mockCleaning0, assignedTo: 0, assignedToName: "Coinquilino 1", declinedBy: [] },
+        mockCleaning1,
+      ],
+    };
+    resolveUndoPost({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        week: restoredWeek,
+      }),
+    });
+
+    const success = await undoOp;
+    expect(success).toBe(true);
+    expect(controller.isCleaningSubmitting("task-0")).toBe(false);
+    expect(controller.getActiveMutationsCount()).toBe(0);
+  });
+
+  it("handles rollback/error on undoDeclineCleaning when server returns 409", async () => {
+    const declinedCleaning0: CleaningTask = {
+      ...mockCleaning0,
+      assignedTo: 1,
+      assignedToName: "Coinquilino 2",
+      declinedBy: [0],
+    };
+    const declinedWeek: WeekState = {
+      ...mockWeek,
+      cleanings: [declinedCleaning0, mockCleaning1],
+    };
+    const declinedHouseData: HouseData = {
+      ...initialHouseData,
+      currentWeek: declinedWeek,
+    };
+
+    const mockFetcher = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/house/cleanings") {
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          json: async () => ({
+            error: "Non è possibile annullare la rinuncia: un altro coinquilino ha già agito.",
+          }),
+        });
+      }
+      if (url === "/api/house/data") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => declinedHouseData,
+        });
+      }
+      return Promise.reject(new Error("Unknown route"));
+    });
+
+    const controller = createController(mockFetcher, declinedHouseData);
+    const success = await controller.undoDeclineCleaning("task-0", "2026-W30", 0);
+
+    expect(success).toBe(false);
+    expect(errorHistory[errorHistory.length - 1]).toContain("un altro coinquilino ha già agito");
+    expect(controller.isCleaningSubmitting("task-0")).toBe(false);
+    expect(controller.getActiveMutationsCount()).toBe(0);
+  });
 });
