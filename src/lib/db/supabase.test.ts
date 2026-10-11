@@ -185,6 +185,7 @@ describe("SupabaseHouseRepository Conditional Cleaning Updates & Undo", () => {
       assigned_to: 1,
       assigned_to_name: "Coinquilino 2",
       declined_by: [0],
+      undoable_declines: [],
       is_completed: false,
       completed_at: null,
       completed_by_name: null,
@@ -428,6 +429,187 @@ describe("SupabaseHouseRepository History Pagination with > 30 items in single c
     expect(page3.totalCount).toBe(70);
     expect(page3.hasMore).toBe(false);
     expect(page3.items[0].id).toBe("clean-task-60");
+  });
+});
+
+describe("SupabaseHouseRepository Trash Queue Protection (Issue 4)", () => {
+  it("throws immediately on read error without upserting initial queue [0, 1, 2]", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockUpsert = vi.fn();
+    const mockQuery: any = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: "Database connection timeout" },
+      }),
+      upsert: mockUpsert,
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    await expect(repo.getTrashQueue()).rejects.toThrow("Errore lettura configurazione coda spazzatura");
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("returns existing trash queue without upserting", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockUpsert = vi.fn();
+    const mockQuery: any = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { trash_queue: [2, 0, 1] },
+        error: null,
+      }),
+      upsert: mockUpsert,
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    const queue = await repo.getTrashQueue();
+    expect(queue).toEqual([2, 0, 1]);
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("initializes queue with [0, 1, 2] only when configuration row is genuinely absent (data === null, error === null)", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockUpsertQuery: any = {
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: { trash_queue: [0, 1, 2] },
+        error: null,
+      }),
+    };
+    const mockUpsert = vi.fn().mockReturnValue(mockUpsertQuery);
+
+    const mockSelectQuery: any = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      }),
+      upsert: mockUpsert,
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockSelectQuery),
+    };
+
+    const queue = await repo.getTrashQueue();
+    expect(queue).toEqual([0, 1, 2]);
+    expect(mockUpsert).toHaveBeenCalledWith({ id: "default", trash_queue: [0, 1, 2] });
+  });
+});
+
+describe("SupabaseHouseRepository Atomic Cleaning Verification of declinedBy (Issue 3)", () => {
+  it("enforces exact declined_by array condition in query and saves undoable_declines", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    let updatedPayload: any = null;
+    const eqCalls: [string, any][] = [];
+
+    const mockQuery: any = {
+      update: vi.fn((payload) => {
+        updatedPayload = payload;
+        return mockQuery;
+      }),
+      eq: vi.fn((col, val) => {
+        eqCalls.push([col, val]);
+        return mockQuery;
+      }),
+      is: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: "2026-10-05-area-0" }],
+        error: null,
+      }),
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    const task = {
+      id: "2026-10-05-area-0",
+      weekKey: "2026-10-05",
+      areaId: 0,
+      assignedTo: 1,
+      assignedToName: "Coinquilino 2",
+      declinedBy: [0],
+      undoableDeclines: [0],
+      isCompleted: false,
+      completedAt: null,
+      completedByName: null,
+      completedBy: null,
+    };
+
+    const success = await repo.updateCleaningTask(task, {
+      isCompleted: false,
+      assignedTo: 0,
+      declinedBy: [],
+    });
+
+    expect(success).toBe(true);
+    expect(eqCalls).toContainEqual(["id", "2026-10-05-area-0"]);
+    expect(eqCalls).toContainEqual(["is_completed", false]);
+    expect(eqCalls).toContainEqual(["assigned_to", 0]);
+    expect(eqCalls).toContainEqual(["declined_by", "{}"]);
+
+    expect(updatedPayload.declined_by).toEqual([0]);
+    expect(updatedPayload.undoable_declines).toEqual([0]);
+  });
+
+  it("returns false if concurrent operation altered declined_by (query returns 0 updated rows)", async () => {
+    const repo = new SupabaseHouseRepository("https://dummy.supabase.co", "dummy-service-key");
+
+    const mockQuery: any = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({
+        data: [], // 0 righe aggiornate per mismatch condizionale
+        error: null,
+      }),
+    };
+
+    // @ts-expect-error accessing private client for unit test mocking
+    repo.client = {
+      from: vi.fn().mockReturnValue(mockQuery),
+    };
+
+    const task = {
+      id: "2026-10-05-area-0",
+      weekKey: "2026-10-05",
+      areaId: 0,
+      assignedTo: 2,
+      assignedToName: "Coinquilino 3",
+      declinedBy: [0, 1],
+      undoableDeclines: [0, 1],
+      isCompleted: false,
+      completedAt: null,
+      completedByName: null,
+      completedBy: null,
+    };
+
+    const success = await repo.updateCleaningTask(task, {
+      isCompleted: false,
+      assignedTo: 1,
+      declinedBy: [0], // stato stale: nel DB era già cambiato
+    });
+
+    expect(success).toBe(false);
   });
 });
 

@@ -28,6 +28,7 @@ export interface CleaningTask {
   assignedTo: number | null;
   assignedToName: string | null; // Snapshot storico del nome dell'assegnatario
   declinedBy: number[];
+  undoableDeclines?: number[]; // Sequenza ordinata delle rinunce annullabili nel ciclo di assegnazione corrente
   isCompleted: boolean;
   completedAt: string | null;
   completedByName: string | null;

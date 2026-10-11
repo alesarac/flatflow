@@ -283,6 +283,7 @@ export function createWeekCleanings(
       assignedTo: baseRoommate,
       assignedToName,
       declinedBy: [],
+      undoableDeclines: [],
       isCompleted: false,
       completedAt: null,
       completedByName: null,
@@ -314,9 +315,13 @@ export function declineCleaningTask(
   const nextAssignee = findSubstitute(decliningRoommateId, updatedDeclined);
   const nextAssigneeObj = nextAssignee !== null ? roommates.find((r) => r.id === nextAssignee) : null;
 
+  const currentUndoable = task.undoableDeclines || [];
+  const updatedUndoable = [...currentUndoable, decliningRoommateId];
+
   return {
     ...task,
     declinedBy: updatedDeclined,
+    undoableDeclines: updatedUndoable,
     assignedTo: nextAssignee,
     assignedToName: nextAssigneeObj ? nextAssigneeObj.name : null,
   };
@@ -326,6 +331,7 @@ export function declineCleaningTask(
  * Gestisce la presa in carico di una pulizia senza incaricato («Me ne occupo io»).
  * Assegna il compito al coinquilino che si offre volontario, rimuove la sua eventuale
  * rinuncia precedente da declinedBy, e mantiene il compito NON completato.
+ * La presa in carico sigilla la catena precedente: nessuna rinuncia anteriore al claim può più essere annullata.
  */
 export function claimCleaningTask(
   task: CleaningTask,
@@ -348,6 +354,7 @@ export function claimCleaningTask(
     assignedTo: claimingRoommateId,
     assignedToName: claimingObj ? claimingObj.name : null,
     declinedBy: updatedDeclined,
+    undoableDeclines: [],
     isCompleted: false,
   };
 }
@@ -401,6 +408,7 @@ export function uncompleteCleaningTask(
     completedAt: null,
     completedByName: null,
     completedBy: null,
+    undoableDeclines: [],
     assignedTo,
     assignedToName: assignedRoommate ? assignedRoommate.name : null,
   };
@@ -410,7 +418,7 @@ export function uncompleteCleaningTask(
  * Verifica se un coinquilino può annullare la propria rinuncia a una pulizia («Non posso»).
  * L'annullamento è consentito solo se:
  * 1. L'attività non è completata.
- * 2. Il coinquilino è stato l'ultimo a rinunciare.
+ * 2. Il coinquilino è l'autore dell'ultima rinuncia annullabile del ciclo corrente (undoableDeclines).
  * 3. Nessun altro coinquilino ha effettuato un'azione successiva (l'assegnatario attuale
  *    è ancora esattamente il sostituto designato dalla rinuncia o null se tutti avevano rinunciato).
  */
@@ -422,44 +430,20 @@ export function canUndoCleaningDecline(
     return false;
   }
 
-  if (!task.declinedBy || task.declinedBy.length === 0) {
+  const undoable = task.undoableDeclines !== undefined ? task.undoableDeclines : (task.declinedBy || []);
+  if (undoable.length === 0) {
     return false;
   }
 
-  const lastDecliner = task.declinedBy[task.declinedBy.length - 1];
+  const lastDecliner = undoable[undoable.length - 1];
   if (lastDecliner !== roommateId) {
     return false;
   }
 
-  // Replay della catena delle assegnazioni a partire dalla rotazione di base
-  let baseAssignee = 0;
-  try {
-    const weekIndex = getRotationWeekIndex(task.weekKey);
-    baseAssignee = getBaseAssignment(task.areaId, weekIndex);
-  } catch {
-    baseAssignee = task.areaId % 3;
-  }
-  if (isNaN(baseAssignee)) {
-    baseAssignee = task.areaId % 3;
-  }
-
-  let currentAssignee: number | null = baseAssignee;
-  const currentDeclined: number[] = [];
-
-  for (const decliner of task.declinedBy) {
-    if (decliner !== currentAssignee) {
-      // Se chi ha rinunciato non era l'effettivo assegnatario della catena,
-      // la sequenza è stata alterata da azioni esterne (es. presa in carico/claim)
-      return false;
-    }
-    currentDeclined.push(decliner);
-    currentAssignee = findSubstitute(decliner, currentDeclined);
-  }
-
-  // L'assegnatario attuale della scheda deve corrispondere esattamente
-  // a quello derivante dall'ultima rinuncia (o null se tutti hanno rinunciato).
-  // Se un altro coinquilino ha agito (es. preso in carico), il controllo fallisce.
-  if (task.assignedTo !== currentAssignee) {
+  // L'assegnatario attuale della scheda deve coincidere con il sostituto designato da questa rinuncia.
+  // Se qualcuno ha preso in carico ("Me ne occupo io") o ha riassegnato, il controllo fallisce.
+  const expectedAssignee = findSubstitute(roommateId, task.declinedBy);
+  if (task.assignedTo !== expectedAssignee) {
     return false;
   }
 
@@ -468,8 +452,8 @@ export function canUndoCleaningDecline(
 
 /**
  * Annulla la rinuncia a una pulizia settimanale («Non posso»).
- * Rimuove il coinquilino dall'elenco dei rinunciatari e gli riassegna il compito,
- * ripristinando lo stato precedente.
+ * Rimuove il coinquilino dall'elenco delle rinunce annullabili e dei rinunciatari,
+ * e gli riassegna il compito ripristinando lo stato precedente.
  */
 export function undoDeclineCleaningTask(
   task: CleaningTask,
@@ -480,12 +464,21 @@ export function undoDeclineCleaningTask(
     throw new Error("Impossibile annullare la rinuncia per questa attività.");
   }
 
-  const updatedDeclined = task.declinedBy.slice(0, -1);
+  const currentUndoable = task.undoableDeclines !== undefined ? task.undoableDeclines : (task.declinedBy || []);
+  const updatedUndoable = currentUndoable.slice(0, -1);
+
+  // Rimuove l'ultima occorrenza del coinquilino da declinedBy
+  const lastIndex = task.declinedBy.lastIndexOf(roommateId);
+  const updatedDeclined = lastIndex !== -1
+    ? [...task.declinedBy.slice(0, lastIndex), ...task.declinedBy.slice(lastIndex + 1)]
+    : task.declinedBy;
+
   const roommateObj = roommates.find((r) => r.id === roommateId);
 
   return {
     ...task,
     declinedBy: updatedDeclined,
+    undoableDeclines: updatedUndoable,
     assignedTo: roommateId,
     assignedToName: roommateObj ? roommateObj.name : null,
   };

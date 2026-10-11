@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS cleaning_tasks (
   assigned_to INT REFERENCES roommates(id) ON DELETE SET NULL,
   assigned_to_name TEXT, -- Snapshot storico del nome dell'incaricato
   declined_by INT[] NOT NULL DEFAULT '{}',
+  undoable_declines INT[] NOT NULL DEFAULT '{}',
   is_completed BOOLEAN NOT NULL DEFAULT FALSE,
   completed_at TIMESTAMPTZ,
   completed_by_name TEXT,

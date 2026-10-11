@@ -16,7 +16,7 @@ export interface IHouseRepository {
   getWeekState(weekKey: string): Promise<WeekState>;
   updateCleaningTask(
     task: CleaningTask,
-    condition?: { isCompleted?: boolean; assignedTo?: number | null }
+    condition?: { isCompleted?: boolean; assignedTo?: number | null; declinedBy?: number[] }
   ): Promise<boolean>;
 
   getOpenTrashTask(): Promise<TrashTask | null>;

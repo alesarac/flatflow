@@ -1759,6 +1759,70 @@ describe("Gestione Attività Senza Incaricato & Concorrenza (Scenari 1-8) [Local
     expect(restoredTask.assignedTo).toBe(0);
   });
 
+  // Criticità 3: Concorrenza degli aggiornamenti delle pulizie con verifica di declinedBy
+  it("Criticità 3: rifiuta con 409 una richiesta basata su uno stato precedente di declinedBy anche se l'assegnatario torna allo stesso ID", async () => {
+    // 1. Attività inizialmente assegnata a 0, declinedBy = []
+    const week = await repo.getWeekState(currentWeekKey);
+    const task = week.cleanings[0];
+    await repo.updateCleaningTask({
+      ...task,
+      assignedTo: 0,
+      assignedToName: "Coinquilino 1",
+      declinedBy: [],
+      undoableDeclines: [],
+      isCompleted: false,
+    });
+
+    // 2. Interviene una successione di rinunce e presa in carico:
+    // 0 rinuncia -> assegnata a 1
+    // 1 rinuncia -> assegnata a 2
+    // 2 rinuncia -> priva di assegnatario (null)
+    // 0 prende in carico ("claim") -> torna assegnata a 0, ma declinedBy è ora [1, 2]!
+    await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeadersFor(0),
+        body: JSON.stringify({ action: "decline", weekKey: currentWeekKey, taskId: task.id, roommateId: 0 }),
+      })
+    );
+    await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeadersFor(1),
+        body: JSON.stringify({ action: "decline", weekKey: currentWeekKey, taskId: task.id, roommateId: 1 }),
+      })
+    );
+    await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeadersFor(2),
+        body: JSON.stringify({ action: "decline", weekKey: currentWeekKey, taskId: task.id, roommateId: 2 }),
+      })
+    );
+    await cleaningsRoute(
+      new Request("http://localhost/api/house/cleanings", {
+        method: "POST",
+        headers: authHeadersFor(0),
+        body: JSON.stringify({ action: "claim", weekKey: currentWeekKey, taskId: task.id, roommateId: 0 }),
+      })
+    );
+
+    // Lo stato attuale nel repository ha assignedTo: 0, ma declinedBy: [1, 2]
+    const updatedState = await repo.getWeekState(currentWeekKey);
+    const currentTask = updatedState.cleanings.find((t) => t.id === task.id)!;
+    expect(currentTask.assignedTo).toBe(0);
+    expect(currentTask.declinedBy).toEqual([1, 2]);
+
+    // 3. Ora una richiesta ritardata/concorrente basata sul vecchio stato (quando declinedBy era [])
+    // tenta di eseguire un'operazione atomica condizionale su tale attività.
+    const staleUpdateResult = await repo.updateCleaningTask(
+      { ...currentTask, isCompleted: true },
+      { isCompleted: false, assignedTo: 0, declinedBy: [] }
+    );
+    // Deve essere rifiutata atomicamente perché declinedBy non corrisponde!
+    expect(staleUpdateResult).toBe(false);
+  });
+
   describe("Shared Shopping List API (/api/house/shopping)", () => {
     function authHeadersFor(rId: number) {
       const token = createSessionToken(rId);

@@ -94,10 +94,14 @@ export class SupabaseHouseRepository implements IHouseRepository {
       .from("house_config")
       .select("trash_queue")
       .eq("id", "default")
-      .single();
+      .maybeSingle();
 
     if (error) {
-      // Se non esiste la riga di configurazione, la creiamo
+      throw new Error(`Errore lettura configurazione coda spazzatura: ${error.message}`);
+    }
+
+    if (!data) {
+      // Se non esiste la riga di configurazione, la creiamo con la sequenza iniziale
       const { data: created, error: createError } = await this.client
         .from("house_config")
         .upsert({ id: "default", trash_queue: [0, 1, 2] })
@@ -105,7 +109,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         .single();
 
       if (createError || !created) {
-        throw new Error(`Errore lettura configurazione coda spazzatura: ${error.message}`);
+        throw new Error(`Errore inizializzazione configurazione coda spazzatura: ${createError?.message || "creazione fallita"}`);
       }
       return created.trash_queue as number[];
     }
@@ -150,6 +154,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         assigned_to: c.assignedTo,
         assigned_to_name: c.assignedToName,
         declined_by: c.declinedBy,
+        undoable_declines: c.undoableDeclines || [],
         is_completed: c.isCompleted,
         completed_at: c.completedAt,
         completed_by_name: c.completedByName,
@@ -185,6 +190,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         assignedTo: t.assigned_to,
         assignedToName: t.assigned_to_name || (t.assigned_to !== null ? fallbackRoommates.find((r) => r.id === t.assigned_to)?.name || null : null),
         declinedBy: t.declined_by || [],
+        undoableDeclines: t.undoable_declines || [],
         isCompleted: t.is_completed,
         completedAt: t.completed_at,
         completedByName: t.completed_by_name,
@@ -201,6 +207,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         assignedTo: t.assigned_to,
         assignedToName: t.assigned_to_name || (t.assigned_to !== null ? fallbackRoommates.find((r) => r.id === t.assigned_to)?.name || null : null),
         declinedBy: t.declined_by || [],
+        undoableDeclines: t.undoable_declines || [],
         isCompleted: t.is_completed,
         completedAt: t.completed_at,
         completedByName: t.completed_by_name,
@@ -223,7 +230,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
 
   async updateCleaningTask(
     task: CleaningTask,
-    condition?: { isCompleted?: boolean; assignedTo?: number | null }
+    condition?: { isCompleted?: boolean; assignedTo?: number | null; declinedBy?: number[] }
   ): Promise<boolean> {
     let query = this.client
       .from("cleaning_tasks")
@@ -231,6 +238,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
         assigned_to: task.assignedTo,
         assigned_to_name: task.assignedToName,
         declined_by: task.declinedBy,
+        undoable_declines: task.undoableDeclines || [],
         is_completed: task.isCompleted,
         completed_at: task.completedAt,
         completed_by_name: task.completedByName,
@@ -248,6 +256,10 @@ export class SupabaseHouseRepository implements IHouseRepository {
         } else {
           query = query.eq("assigned_to", condition.assignedTo);
         }
+      }
+      if (condition.declinedBy !== undefined) {
+        const pgArray = `{${condition.declinedBy.join(",")}}`;
+        query = query.eq("declined_by", pgArray);
       }
     }
 

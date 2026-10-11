@@ -93,15 +93,17 @@ export async function POST(req: Request) {
       completedAt: new Date().toISOString(),
       completedByName: roommate.name,
       completedBy: roommateId,
+      undoableDeclines: [],
       assignedTo: task.assignedTo !== null ? task.assignedTo : null,
       assignedToName: task.assignedToName !== null ? task.assignedToName : null,
     };
 
     // P1-02: Aggiornamento condizionale atomico: verifica che non sia già completato
-    // e che assigned_to sia ancora esattamente quello verificato (incluso null se era privo di incaricato)
+    // e che assigned_to e declined_by siano ancora esattamente quelli verificati (incluso null se era privo di incaricato)
     const updated = await repo.updateCleaningTask(taskToSave, {
       isCompleted: false,
       assignedTo: task.assignedTo,
+      declinedBy: task.declinedBy,
     });
 
     if (!updated) {
@@ -139,10 +141,11 @@ export async function POST(req: Request) {
       roommates
     );
 
-    // P1-02: Aggiornamento condizionale atomico: verifica che sia ancora assegnato e non completato
+    // P1-02: Aggiornamento condizionale atomico: verifica che sia ancora assegnato, non completato e declined_by non modificato
     const updated = await repo.updateCleaningTask(updatedTask, {
       isCompleted: false,
       assignedTo: roommateId,
+      declinedBy: task.declinedBy,
     });
 
     if (!updated) {
@@ -186,10 +189,11 @@ export async function POST(req: Request) {
       roommates
     );
 
-    // Aggiornamento condizionale atomico: verifica che non sia completata e sia ancora senza incaricato
+    // Aggiornamento condizionale atomico: verifica che non sia completata, sia ancora senza incaricato e declined_by non modificato
     const updated = await repo.updateCleaningTask(updatedTask, {
       isCompleted: false,
       assignedTo: null,
+      declinedBy: task.declinedBy,
     });
 
     if (!updated) {
@@ -240,9 +244,10 @@ export async function POST(req: Request) {
       roommates
     );
 
-    // Aggiornamento condizionale atomico: verifica che l'attività sia ancora completata
+    // Aggiornamento condizionale atomico: verifica che l'attività sia ancora completata e declined_by invariato
     const updated = await repo.updateCleaningTask(uncompletedTask, {
       isCompleted: true,
+      declinedBy: task.declinedBy,
     });
 
     if (!updated) {
@@ -289,6 +294,7 @@ export async function POST(req: Request) {
     const updated = await repo.updateCleaningTask(updatedTask, {
       isCompleted: false,
       assignedTo: task.assignedTo,
+      declinedBy: task.declinedBy,
     });
 
     if (!updated) {

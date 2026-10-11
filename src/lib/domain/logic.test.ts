@@ -376,6 +376,73 @@ describe("Undoing Cleaning Decline Domain Logic", () => {
     expect(canUndoCleaningDecline(claimed, 2)).toBe(false);
     expect(() => undoDeclineCleaningTask(claimed, 2, roommates)).toThrow();
   });
+
+  it("Criticità 1: impedisce al coinquilino 1 di annullare la propria rinuncia dopo un claim eseguito dal coinquilino 2", () => {
+    // Sequenza richiesta:
+    // 0 preme "Non posso" -> assegnata a 1
+    // 1 preme "Non posso" -> assegnata a 2
+    // 2 preme "Non posso" -> "Da coprire"
+    // 2 preme "Me ne occupo io" -> assegnata a 2
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    let task = cleanings[0]; // assegnata inizialmente a 0
+    expect(task.assignedTo).toBe(0);
+
+    task = declineCleaningTask(task, 0, roommates);
+    expect(task.assignedTo).toBe(1);
+
+    task = declineCleaningTask(task, 1, roommates);
+    expect(task.assignedTo).toBe(2);
+
+    task = declineCleaningTask(task, 2, roommates);
+    expect(task.assignedTo).toBeNull();
+
+    task = claimCleaningTask(task, 2, roommates);
+    expect(task.assignedTo).toBe(2);
+
+    // Verifica che canUndoCleaningDecline(task, 1) non restituisca erroneamente true
+    expect(canUndoCleaningDecline(task, 1)).toBe(false);
+    expect(() => undoDeclineCleaningTask(task, 1, roommates)).toThrow(
+      "Impossibile annullare la rinuncia per questa attività."
+    );
+
+    // Né 0 né 2 possono annullare rinunce precedenti dopo il claim
+    expect(canUndoCleaningDecline(task, 0)).toBe(false);
+    expect(canUndoCleaningDecline(task, 2)).toBe(false);
+  });
+
+  it("Criticità 2: consente al coinquilino 0 di annullare una nuova rinuncia effettuata dopo una presa in carico (claim)", () => {
+    // Sequenza richiesta:
+    // Tutti e tre rinunciano
+    // Il coinquilino 0 prende in carico il compito
+    // Il coinquilino 0 preme nuovamente "Non posso"
+    // Nessun altro effettua azioni successive
+    const cleanings = createWeekCleanings("2026-10-05", roommates);
+    let task = cleanings[0]; // assegnata a 0
+
+    task = declineCleaningTask(task, 0, roommates); // -> 1
+    task = declineCleaningTask(task, 1, roommates); // -> 2
+    task = declineCleaningTask(task, 2, roommates); // -> null
+    expect(task.assignedTo).toBeNull();
+
+    // 0 prende in carico il compito
+    task = claimCleaningTask(task, 0, roommates);
+    expect(task.assignedTo).toBe(0);
+
+    // 0 preme nuovamente "Non posso"
+    task = declineCleaningTask(task, 0, roommates);
+    expect(task.assignedTo).toBeNull();
+
+    // Nessun altro ha effettuato azioni successive: 0 deve poter annullare quest'ultima rinuncia
+    expect(canUndoCleaningDecline(task, 0)).toBe(true);
+    // Gli altri non possono annullare
+    expect(canUndoCleaningDecline(task, 1)).toBe(false);
+    expect(canUndoCleaningDecline(task, 2)).toBe(false);
+
+    // Annullamento da parte di 0 ripristina l'assegnazione a 0
+    const undone = undoDeclineCleaningTask(task, 0, roommates);
+    expect(undone.assignedTo).toBe(0);
+    expect(undone.assignedToName).toBe("Coinquilino 1");
+  });
 });
 
 describe("Claiming Unassigned Tasks Domain Logic (Section 1)", () => {

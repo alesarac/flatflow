@@ -116,7 +116,7 @@ export class LocalHouseRepository implements IHouseRepository {
 
   async updateCleaningTask(
     task: CleaningTask,
-    condition?: { isCompleted?: boolean; assignedTo?: number | null }
+    condition?: { isCompleted?: boolean; assignedTo?: number | null; declinedBy?: number[] }
   ): Promise<boolean> {
     const weekCleanings = this.data.cleanings[task.weekKey];
     if (!weekCleanings) return false;
@@ -130,6 +130,16 @@ export class LocalHouseRepository implements IHouseRepository {
       }
       if (condition.assignedTo !== undefined && current.assignedTo !== condition.assignedTo) {
         return false;
+      }
+      if (condition.declinedBy !== undefined) {
+        const currentDeclined = current.declinedBy || [];
+        const expectedDeclined = condition.declinedBy || [];
+        if (
+          currentDeclined.length !== expectedDeclined.length ||
+          !currentDeclined.every((val, i) => val === expectedDeclined[i])
+        ) {
+          return false;
+        }
       }
     }
 
