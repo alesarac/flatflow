@@ -134,6 +134,30 @@ export function useHouseData() {
 
     setSubmittingTaskId(taskId);
     setIsSubmitting(true);
+
+    // Aggiornamento ottimistico immediato: l'area risulta subito non assegnata con rinuncia registrata
+    setData((prev) => {
+      if (!prev || !prev.currentWeek) return prev;
+      return {
+        ...prev,
+        currentWeek: {
+          ...prev.currentWeek,
+          cleanings: prev.currentWeek.cleanings.map((c) =>
+            c.id === taskId
+              ? {
+                  ...c,
+                  assignedTo: null,
+                  assignedToName: null,
+                  declinedBy: c.declinedBy.includes(targetRoommateId)
+                    ? c.declinedBy
+                    : [...c.declinedBy, targetRoommateId],
+                }
+              : c
+          ),
+        },
+      };
+    });
+
     try {
       const res = await fetch("/api/house/cleanings", {
         method: "POST",
@@ -151,7 +175,7 @@ export function useHouseData() {
         const msg = resJson.error || "Impossibile rinunciare all'attività";
         setError(msg);
         alert(msg);
-        await fetchData();
+        await fetchData(); // rollback
         return false;
       }
 
@@ -161,7 +185,7 @@ export function useHouseData() {
       return true;
     } catch {
       setError("Errore di rete durante la rinuncia.");
-      await fetchData();
+      await fetchData(); // rollback
       return false;
     } finally {
       setSubmittingTaskId(null);
@@ -300,6 +324,26 @@ export function useHouseData() {
   // Azioni spazzatura
   const reportTrashAction = async () => {
     setIsSubmitting(true);
+
+    // Aggiornamento ottimistico immediato: mostra subito la spazzatura come aperta e piena
+    setData((prev) => {
+      if (!prev) return prev;
+      const nextAssigned =
+        prev.trashQueue && prev.trashQueue.length > 0 ? prev.trashQueue[0] : 0;
+      return {
+        ...prev,
+        openTrashTask: {
+          id: "temp_trash",
+          status: "open",
+          assignedTo: nextAssigned,
+          declinedBy: [],
+          reportedAt: new Date().toISOString(),
+          completedAt: null,
+          completedByName: null,
+        },
+      };
+    });
+
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
@@ -341,6 +385,26 @@ export function useHouseData() {
     if (targetRoommateId === null) return false;
 
     setIsSubmitting(true);
+
+    // Aggiornamento ottimistico immediato
+    setData((prev) => {
+      if (!prev || !prev.openTrashTask) return prev;
+      const currentTask = prev.openTrashTask;
+      const updatedDeclined = currentTask.declinedBy.includes(targetRoommateId)
+        ? currentTask.declinedBy
+        : [...currentTask.declinedBy, targetRoommateId];
+      // Se tutti e 3 hanno rifiutato, l'assegnatario diventa null; altrimenti passa al prossimo in coda
+      const nextCandidate = prev.trashQueue.find((id) => !updatedDeclined.includes(id)) ?? null;
+      return {
+        ...prev,
+        openTrashTask: {
+          ...currentTask,
+          assignedTo: nextCandidate,
+          declinedBy: updatedDeclined,
+        },
+      };
+    });
+
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
@@ -427,6 +491,20 @@ export function useHouseData() {
     if (targetRoommateId === null) return false;
 
     setIsSubmitting(true);
+
+    // Aggiornamento ottimistico immediato
+    setData((prev) => {
+      if (!prev || !prev.openTrashTask) return prev;
+      return {
+        ...prev,
+        openTrashTask: {
+          ...prev.openTrashTask,
+          assignedTo: targetRoommateId,
+          declinedBy: prev.openTrashTask.declinedBy.filter((id) => id !== targetRoommateId),
+        },
+      };
+    });
+
     try {
       const res = await fetch("/api/house/trash", {
         method: "POST",
@@ -465,28 +543,33 @@ export function useHouseData() {
 
   // Aggiornamento nome coinquilino (solo il proprio)
   const updateRoommateName = async (id: number, name: string): Promise<boolean> => {
+    const trimmed = name.trim();
+    // Aggiornamento ottimistico immediato
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            roommates: prev.roommates.map((r) =>
+              r.id === id ? { ...r, name: trimmed } : r
+            ),
+          }
+        : prev
+    );
+
     try {
       const res = await fetch("/api/house/roommates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, name }),
+        body: JSON.stringify({ id, name: trimmed }),
       });
 
       if (!res.ok) {
+        await fetchData(); // rollback
         return false;
       }
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              roommates: prev.roommates.map((r) =>
-                r.id === id ? { ...r, name: name.trim() } : r
-              ),
-            }
-          : prev
-      );
       return true;
     } catch {
+      await fetchData(); // rollback
       return false;
     }
   };

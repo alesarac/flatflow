@@ -26,7 +26,6 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [newItemName, setNewItemName] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
   const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
@@ -89,18 +88,13 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
     };
   }, [fetchItems]);
 
-  const handleAdd = async (e?: React.FormEvent) => {
+  const handleAdd = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = newItemName.trim();
-    if (!trimmed || isAdding) return;
+    if (!trimmed) return;
 
-    setIsAdding(true);
     setNewItemName("");
-    const ok = await controllerRef.current?.addItem(trimmed);
-    if (!ok) {
-      setNewItemName(trimmed);
-    }
-    setIsAdding(false);
+    controllerRef.current?.addItem(trimmed, myRoommateId, currentRoommateName);
   };
 
   const handleToggle = (id: string, isBought: boolean) => {
@@ -177,11 +171,11 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
 
         <button
           type="submit"
-          disabled={!newItemName.trim() || isAdding}
+          disabled={!newItemName.trim()}
           className="min-h-[44px] min-w-[44px] w-11 h-11 rounded-2xl bg-[#4355EC] hover:bg-[#3847cf] active:scale-95 disabled:opacity-40 text-white flex items-center justify-center shrink-0 shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           title="Aggiungi prodotto"
         >
-          {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-5 h-5 stroke-[2.5]" />}
+          <Plus className="w-5 h-5 stroke-[2.5]" />
         </button>
       </form>
 

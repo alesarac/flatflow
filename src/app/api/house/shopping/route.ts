@@ -38,10 +38,6 @@ export async function POST(req: Request) {
   const roommateId = session.roommateId;
   const repo = getRepository();
 
-  const roommates = await repo.getRoommates();
-  const currentRoommate = roommates.find((r) => r.id === roommateId);
-  const authorName = currentRoommate?.name || `Coinquilino ${roommateId + 1}`;
-
   if (action === "add") {
     const { name } = body;
     if (typeof name !== "string" || name.trim().length === 0) {
@@ -59,6 +55,10 @@ export async function POST(req: Request) {
     }
 
     try {
+      const roommates = await repo.getRoommates();
+      const currentRoommate = roommates.find((r) => r.id === roommateId);
+      const authorName = currentRoommate?.name || `Coinquilino ${roommateId + 1}`;
+
       const item = await repo.addShoppingItem(trimmed, roommateId, authorName);
       const items = await repo.getShoppingItems();
       return NextResponse.json({ success: true, item, items });
@@ -81,8 +81,14 @@ export async function POST(req: Request) {
     }
 
     try {
+      let boughtByName: string | null = null;
+      if (isBought) {
+        const roommates = await repo.getRoommates();
+        const currentRoommate = roommates.find((r) => r.id === roommateId);
+        boughtByName = currentRoommate?.name || `Coinquilino ${roommateId + 1}`;
+      }
+
       const boughtBy = isBought ? roommateId : null;
-      const boughtByName = isBought ? authorName : null;
       const updated = await repo.toggleShoppingItem(id, isBought, boughtBy, boughtByName);
       if (!updated) {
         return NextResponse.json({ error: "Prodotto non trovato." }, { status: 404 });

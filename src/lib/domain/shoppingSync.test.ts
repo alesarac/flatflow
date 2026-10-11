@@ -304,4 +304,82 @@ describe("ShoppingSyncController Concurrency & Reconciliation", () => {
     expect(getCalls).toBeGreaterThanOrEqual(1);
     expect(controller.getItems().find((i) => i.id === "item-a")?.isBought).toBe(false);
   });
+
+  it("optimistically adds items immediately and commits server data on response", async () => {
+    let resolveAdd!: (val: any) => void;
+    const addPromise = new Promise((res) => {
+      resolveAdd = res;
+    });
+
+    const mockFetcher = vi.fn().mockImplementation((url: string, init?: any) => {
+      const body = JSON.parse(init.body);
+      if (body.action === "add" && body.name === "Pane") {
+        return addPromise;
+      }
+      return Promise.reject(new Error("Unknown route"));
+    });
+
+    const controller = createController(mockFetcher, [itemA, itemB]);
+
+    // 1. Chiamata addItem: deve apparire subito nei items in modo ottimistico
+    const addOp = controller.addItem("Pane", 0, "Coinquilino 1");
+
+    const currentItems = controller.getItems();
+    expect(currentItems).toHaveLength(3);
+    expect(currentItems[0].name).toBe("Pane");
+    expect(currentItems[0].id.startsWith("temp_")).toBe(true);
+    expect(controller.getPendingItemIds().has(currentItems[0].id)).toBe(true);
+
+    // 2. Il server risponde con l'item definitivo
+    const serverItem: ShoppingItem = {
+      id: "shop-real-123",
+      name: "Pane",
+      isBought: false,
+      addedBy: 0,
+      addedByName: "Coinquilino 1",
+      createdAt: new Date().toISOString(),
+      boughtBy: null,
+      boughtByName: null,
+      boughtAt: null,
+    };
+
+    resolveAdd({
+      ok: true,
+      json: async () => ({
+        success: true,
+        item: serverItem,
+        items: [serverItem, itemA, itemB],
+      }),
+    });
+
+    const ok = await addOp;
+    expect(ok).toBe(true);
+
+    const finalItems = controller.getItems();
+    expect(finalItems).toHaveLength(3);
+    expect(finalItems.find((i) => i.id === "shop-real-123")).toBeDefined();
+    expect(finalItems.find((i) => i.id.startsWith("temp_"))).toBeUndefined();
+    expect(controller.getPendingItemIds().size).toBe(0);
+  });
+
+  it("rolls back optimistic item when addItem encounters network error", async () => {
+    const mockFetcher = vi.fn().mockImplementation(() => {
+      return Promise.reject(new Error("Connessione assente"));
+    });
+
+    const controller = createController(mockFetcher, [itemA, itemB]);
+
+    // Avvia aggiunta che fallirà
+    const addOp = controller.addItem("Biscotti", 1, "Coinquilino 2");
+
+    // Immediatamente visibile come ottimistico
+    expect(controller.getItems().some((i) => i.name === "Biscotti")).toBe(true);
+
+    const ok = await addOp;
+    expect(ok).toBe(false);
+
+    // In seguito al fallimento, l'elemento è rimosso e l'errore è segnalato
+    expect(controller.getItems().some((i) => i.name === "Biscotti")).toBe(false);
+    expect(errorHistory).toContain("Connessione assente");
+  });
 });

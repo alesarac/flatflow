@@ -133,9 +133,31 @@ export class ShoppingSyncController {
     }
   }
 
-  async addItem(name: string): Promise<boolean> {
+  async addItem(
+    name: string,
+    authorId?: number | null,
+    authorName?: string | null
+  ): Promise<boolean> {
     const trimmed = name.trim();
     if (!trimmed) return false;
+
+    // Genera un ID ottimistico temporaneo
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const tempItem: ShoppingItem = {
+      id: tempId,
+      name: trimmed,
+      isBought: false,
+      addedBy: authorId ?? 0,
+      addedByName: authorName || "Coinquilino",
+      createdAt: new Date().toISOString(),
+      boughtBy: null,
+      boughtByName: null,
+      boughtAt: null,
+    };
+
+    // Aggiornamento ottimistico immediato: l'elemento compare subito in cima
+    this.updateItems([tempItem, ...this.items]);
+    this.addPendingId(tempId);
 
     this.activeMutationsCount++;
     const addVersion = ++this.version;
@@ -162,15 +184,18 @@ export class ShoppingSyncController {
             this.updateItems(data.items || []);
             this.needsReconciliation = false;
           } else if (data.item) {
-            this.updateItems([
-              data.item,
-              ...this.items.filter((i) => i.id !== data.item.id),
-            ]);
+            // Sostituisce il tempItem con l'elemento confermato dal server
+            this.updateItems(
+              this.items.map((i) => (i.id === tempId ? data.item : i))
+            );
           }
         } catch (err: any) {
+          // Rollback: rimuove il tempItem non confermato
+          this.updateItems(this.items.filter((i) => i.id !== tempId));
           this.callbacks.onError(err.message || "Errore durante l'aggiunta.");
           this.needsReconciliation = true;
         } finally {
+          this.removePendingId(tempId);
           this.activeMutationsCount = Math.max(0, this.activeMutationsCount - 1);
           this.checkReconciliation();
           resolve(success);

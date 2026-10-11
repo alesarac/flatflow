@@ -20,6 +20,8 @@ import { HistoryResult, IHouseRepository } from "./types";
 
 export class SupabaseHouseRepository implements IHouseRepository {
   private client: SupabaseClient;
+  private cachedRoommates: Roommate[] | null = null;
+  private roommatesCacheTime = 0;
 
   constructor(supabaseUrl: string, serviceRoleKey: string) {
     if (!supabaseUrl || !serviceRoleKey) {
@@ -34,6 +36,12 @@ export class SupabaseHouseRepository implements IHouseRepository {
   }
 
   async getRoommates(): Promise<Roommate[]> {
+    const now = Date.now();
+    // Cache in memoria con TTL di 60 secondi per evitare query ripetute ad ogni singola richiesta API
+    if (this.cachedRoommates && now - this.roommatesCacheTime < 60000) {
+      return [...this.cachedRoommates];
+    }
+
     const { data, error } = await this.client
       .from("roommates")
       .select("id, name")
@@ -50,20 +58,35 @@ export class SupabaseHouseRepository implements IHouseRepository {
       if (insertError) {
         throw new Error(`Errore inizializzazione coinquilini: ${insertError.message}`);
       }
+      this.cachedRoommates = [...DEFAULT_ROOMMATES];
+      this.roommatesCacheTime = now;
       return [...DEFAULT_ROOMMATES];
     }
 
-    return data as Roommate[];
+    this.cachedRoommates = data as Roommate[];
+    this.roommatesCacheTime = now;
+    return [...this.cachedRoommates];
   }
 
   async updateRoommate(id: number, name: string): Promise<void> {
+    const trimmed = name.trim();
     const { error } = await this.client
       .from("roommates")
-      .upsert({ id, name: name.trim(), updated_at: new Date().toISOString() });
+      .upsert({ id, name: trimmed, updated_at: new Date().toISOString() });
 
     if (error) {
       throw new Error(`Errore aggiornamento coinquilino: ${error.message}`);
     }
+
+    // Invalida e aggiorna immediatamente la cache in memoria
+    if (this.cachedRoommates) {
+      this.cachedRoommates = this.cachedRoommates.map((r) =>
+        r.id === id ? { ...r, name: trimmed } : r
+      );
+    } else {
+      this.cachedRoommates = null;
+    }
+    this.roommatesCacheTime = Date.now();
   }
 
   async getTrashQueue(): Promise<number[]> {
@@ -356,8 +379,9 @@ export class SupabaseHouseRepository implements IHouseRepository {
   async getHistory(limit: number = 30, offset: number = 0): Promise<HistoryResult> {
     const currentWeekKey = getWeekKey(new Date());
     const items: HistoryItem[] = [];
+    const fetchLimit = limit + offset;
 
-    // Esecuzione concorrente in parallelo delle 3 query indipendenti
+    // Esecuzione concorrente in parallelo delle 3 query indipendenti limitando i record al volume necessario
     const [
       { data: completedCleanings, error: cErr },
       { data: pastIncompleteCleanings, error: incErr },
@@ -365,20 +389,23 @@ export class SupabaseHouseRepository implements IHouseRepository {
     ] = await Promise.all([
       this.client
         .from("cleaning_tasks")
-        .select("*")
+        .select("id, area_id, week_key, is_completed, completed_at, completed_by_name, created_at")
         .eq("is_completed", true)
-        .order("completed_at", { ascending: false }),
+        .order("completed_at", { ascending: false })
+        .limit(fetchLimit),
       this.client
         .from("cleaning_tasks")
-        .select("*")
+        .select("id, area_id, week_key, is_completed, assigned_to, assigned_to_name")
         .lt("week_key", currentWeekKey)
         .eq("is_completed", false)
-        .order("week_key", { ascending: false }),
+        .order("week_key", { ascending: false })
+        .limit(fetchLimit),
       this.client
         .from("trash_tasks")
-        .select("*")
+        .select("id, status, completed_by_name, completed_at, reported_at")
         .eq("status", "completed")
-        .order("completed_at", { ascending: false }),
+        .order("completed_at", { ascending: false })
+        .limit(fetchLimit),
     ]);
 
     if (cErr) {
@@ -467,7 +494,7 @@ export class SupabaseHouseRepository implements IHouseRepository {
   async getShoppingItems(): Promise<ShoppingItem[]> {
     const { data, error } = await this.client
       .from("shopping_items")
-      .select("*")
+      .select("id, name, is_bought, added_by, added_by_name, created_at, bought_by, bought_by_name, bought_at")
       .order("created_at", { ascending: false });
 
     if (error) {
