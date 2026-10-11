@@ -194,7 +194,7 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
             <button
               type="button"
               onClick={onBack}
-              className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800 shadow-sm inline-flex items-center justify-center active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800 shadow-sm inline-flex items-center justify-center active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-brand"
               title="Torna alle pulizie"
               aria-label="Torna alle pulizie"
             >
@@ -214,10 +214,10 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
           onClick={() => fetchHistory(0)}
           disabled={loading || loadingMore}
           type="button"
-          className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-500 hover:text-slate-900 border border-slate-200/80 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200 active:scale-95 transition-all disabled:opacity-50 shadow-sm inline-flex items-center justify-center outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-500 hover:text-slate-900 border border-slate-200/80 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200 active:scale-95 transition-all disabled:opacity-50 shadow-sm inline-flex items-center justify-center outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
           title="Aggiorna storico"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#365672] dark:text-slate-300" : ""}`} />
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-action dark:text-slate-300" : ""}`} />
         </button>
       </div>
 
@@ -229,7 +229,7 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
 
       {loading && history.length === 0 ? (
         <div className="py-12 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
-          <Loader2 className="w-5 h-5 text-[#365672] dark:text-slate-300 animate-spin" />
+          <Loader2 className="w-5 h-5 text-action dark:text-slate-300 animate-spin" />
           <span>Caricamento storico in corso...</span>
         </div>
       ) : history.length === 0 ? (
@@ -264,7 +264,7 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center justify-between p-3.5 rounded-2xl border shadow-sm transition-colors bg-[#F4F7FB] border-[#E2E8F0] dark:bg-slate-850/90 dark:border-slate-800"
+                            className="flex items-center justify-between p-3.5 rounded-2xl border shadow-sm transition-colors bg-history-bg border-history-border dark:bg-history-darkBg/90 dark:border-history-darkBorder"
                           >
                             <div className="flex items-center gap-3.5 min-w-0">
                               <div className="w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-500 dark:text-slate-400">
@@ -307,12 +307,12 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
                 onClick={() => fetchHistory(history.length)}
                 disabled={loadingMore}
                 type="button"
-                className="min-h-[44px] py-2.5 px-5 rounded-xl bg-white hover:bg-slate-50 text-[#365672] dark:bg-slate-850/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold active:scale-95 transition-all inline-flex items-center gap-2 disabled:opacity-50 shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                className="min-h-[44px] py-2.5 px-5 rounded-xl bg-white hover:bg-slate-50 text-action dark:bg-slate-850/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold active:scale-95 transition-all inline-flex items-center gap-2 disabled:opacity-50 shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
               >
                 {loadingMore ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <ArrowDown className="w-3.5 h-3.5 text-[#365672] dark:text-slate-300" />
+                  <ArrowDown className="w-3.5 h-3.5 text-action dark:text-slate-300" />
                 )}
                 <span>Carica altre attività</span>
               </button>

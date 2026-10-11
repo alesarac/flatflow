@@ -9,6 +9,7 @@ import {
   getSunTimes,
   resolveTheme,
 } from "./solar";
+import { colors } from "./colors";
 
 const THEME_MODE_KEY = "flatloop_theme_mode";
 const COORDS_KEY = "flatloop_coords";
@@ -39,7 +40,7 @@ function applyThemeClass(theme: ResolvedTheme) {
   // Aggiorna anche il meta theme-color per la status bar dei dispositivi mobili (PWA)
   const metaThemeColor = document.querySelector('meta[name="theme-color"]');
   if (metaThemeColor) {
-    metaThemeColor.setAttribute("content", theme === "dark" ? "#090d16" : "#ffffff");
+    metaThemeColor.setAttribute("content", theme === "dark" ? colors.surface.bgDark : colors.surface.cardLight);
   }
 }
 

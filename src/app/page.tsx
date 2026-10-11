@@ -11,7 +11,7 @@ import { HistoryView } from "../components/HistoryView";
 import { SettingsView } from "../components/SettingsView";
 import { ShoppingView } from "../components/ShoppingView";
 import { WeekProgressCard } from "../components/WeekProgressCard";
-import { Loader2, Clock } from "lucide-react";
+import { Loader2, ChevronRight } from "lucide-react";
 
 export default function HomePage() {
   const {
@@ -44,7 +44,7 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-4">
-        <Loader2 className="w-8 h-8 text-indigo-600 dark:text-indigo-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-brand dark:text-brand-dark animate-spin" />
         <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Caricamento FlatLoop...</span>
       </div>
     );
@@ -103,7 +103,7 @@ export default function HomePage() {
             <section className="space-y-2.5">
               <div className="px-0.5">
                 <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
-                  Spazzatura
+                  Buttare la spazzatura
                 </h2>
               </div>
               <TrashCard
@@ -128,11 +128,11 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setCurrentTab("history")}
-                  className="min-h-[44px] px-3 py-1.5 rounded-xl text-xs font-semibold text-[#0f766E] dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all inline-flex items-center gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  className="min-h-[44px] -mr-1 px-2 text-xs font-semibold text-brand hover:text-brand-hover dark:text-brand-dark dark:hover:text-brand-darkHover active:scale-95 transition-all inline-flex items-center gap-0.5 outline-none focus-visible:ring-2 focus-visible:ring-brand rounded-lg"
                   title="Apri storico attività"
                 >
-                  <Clock className="w-3.5 h-3.5" />
                   <span>Storico</span>
+                  <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
                 </button>
               </div>
 

@@ -7,8 +7,13 @@
   --foreground: #0f172a;
 }
 
+.dark {
+  --background: #090d16;
+  --foreground: #f8fafc;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --background: #090d16;
     --foreground: #f8fafc;
   }

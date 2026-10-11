@@ -95,14 +95,14 @@ export function SettingsView({
           Impostazioni
         </h2>
         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-          Gestione coinquilini, preferenze di tema e account
+          Visualizza coinquilini, cambia nome o tema dell'app.
         </p>
       </div>
 
       {/* 1. SEZIONE: COINQUILINI */}
       <div className="bg-white dark:bg-slate-850/90 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm transition-colors">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center text-[#365672] dark:text-slate-300 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center text-action dark:text-slate-300 shrink-0">
             <Users className="w-5 h-5" />
           </div>
           <div>
@@ -127,7 +127,7 @@ export function SettingsView({
                       Coinquilino {r.id + 1}
                     </label>
                     {isMe && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-brand-light text-brand dark:bg-brand-darkBg dark:text-brand-dark">
                         Il tuo profilo
                       </span>
                     )}
@@ -139,7 +139,7 @@ export function SettingsView({
                       onChange={(e) => handleNameChange(r.id, e.target.value)}
                       maxLength={30}
                       required
-                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#365672] transition-colors"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50/80 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-action transition-colors"
                     />
                   ) : (
                     <input
@@ -172,7 +172,7 @@ export function SettingsView({
           <button
             type="submit"
             disabled={saving || !hasChanges}
-            className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-[#365672] hover:bg-[#2c475e] active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-action hover:bg-action-hover active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
           >
             {saving ? (
               <>
@@ -195,18 +195,15 @@ export function SettingsView({
               Preferenze
             </h3>
           </div>
-          <span className="text-xs font-medium text-slate-400 dark:text-slate-400">
-            {resolvedTheme === "light" ? "Aspetto: Chiaro" : "Aspetto: Scuro"}
-          </span>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => setMode("auto")}
-            className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
+            className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action ${
               mode === "auto"
-                ? "bg-[#365672] text-white border-transparent shadow-sm"
+                ? "bg-action text-white border-transparent shadow-sm"
                 : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750"
             }`}
           >
@@ -223,9 +220,9 @@ export function SettingsView({
           <button
             type="button"
             onClick={() => setMode("light")}
-            className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
+            className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action ${
               mode === "light"
-                ? "bg-[#365672] text-white border-transparent shadow-sm"
+                ? "bg-action text-white border-transparent shadow-sm"
                 : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750"
             }`}
           >
@@ -236,9 +233,9 @@ export function SettingsView({
           <button
             type="button"
             onClick={() => setMode("dark")}
-            className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
+            className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-1 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action ${
               mode === "dark"
-                ? "bg-[#365672] text-white border-transparent shadow-sm"
+                ? "bg-action text-white border-transparent shadow-sm"
                 : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750"
             }`}
           >
@@ -276,12 +273,12 @@ export function SettingsView({
               type="button"
               onClick={() => requestLocation()}
               disabled={locationLoading}
-              className="w-full min-h-[44px] py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 dark:border-slate-700 text-xs font-semibold border transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 shadow-sm"
+              className="w-full min-h-[44px] py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 dark:border-slate-700 text-xs font-semibold border transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action shadow-sm"
             >
               {locationLoading ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <MapPin className="w-3.5 h-3.5 text-[#365672] dark:text-slate-300" />
+                <MapPin className="w-3.5 h-3.5 text-action dark:text-slate-300" />
               )}
               <span>
                 {coords
@@ -321,7 +318,7 @@ export function SettingsView({
               Account
             </h3>
             <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
-              Disconnetti la sessione attiva su questo dispositivo.
+              Disconnetti la sessione su questo dispositivo.
             </p>
           </div>
         </div>

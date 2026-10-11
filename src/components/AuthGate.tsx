@@ -82,7 +82,7 @@ export function AuthGate({ onSuccess }: AuthGateProps) {
   return (
     <div className="flex-1 flex flex-col justify-center px-6 py-12">
       <div className="w-full max-w-sm mx-auto text-center space-y-6">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/30 mb-2">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-light dark:bg-brand-darkBg text-brand dark:text-brand-dark border border-brand-lightBorder dark:border-brand-darkBorder mb-2">
           <KeyRound className="w-8 h-8" />
         </div>
 
@@ -111,7 +111,7 @@ export function AuthGate({ onSuccess }: AuthGateProps) {
               onChange={(e) => setCode(e.target.value)}
               placeholder="Inserisci il codice"
               autoFocus
-              className="w-full px-4 py-3.5 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-lg tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm"
+              className="w-full px-4 py-3.5 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-lg tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-colors shadow-sm"
             />
           </div>
 
@@ -122,7 +122,7 @@ export function AuthGate({ onSuccess }: AuthGateProps) {
                 Chi sei?
               </label>
               {selectedRoommate && (
-                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                <span className="text-xs font-semibold text-brand dark:text-brand-dark">
                   {selectedRoommate.name}
                 </span>
               )}
@@ -130,7 +130,7 @@ export function AuthGate({ onSuccess }: AuthGateProps) {
 
             {loadingRoommates ? (
               <div className="flex items-center justify-center p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 text-slate-400 text-xs gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-brand dark:text-brand-dark" />
                 <span>Caricamento profili dalla casa...</span>
               </div>
             ) : roommatesError ? (
@@ -153,9 +153,9 @@ export function AuthGate({ onSuccess }: AuthGateProps) {
                       key={r.id}
                       type="button"
                       onClick={() => setSelectedRoommateId(r.id)}
-                      className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center truncate outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                      className={`min-h-[44px] py-2.5 px-2 rounded-xl text-xs font-semibold border transition-all text-center truncate outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                         isSelected
-                          ? "bg-[#365672] text-white border-transparent shadow-sm"
+                          ? "bg-action text-white border-transparent shadow-sm"
                           : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
                       }`}
                     >
@@ -177,7 +177,7 @@ export function AuthGate({ onSuccess }: AuthGateProps) {
           <button
             type="submit"
             disabled={loading || !code.trim() || selectedRoommateId === null}
-            className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-medium shadow-lg shadow-indigo-600/30 disabled:opacity-50 disabled:pointer-events-none transition-all text-base"
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-brand hover:bg-brand-hover active:scale-[0.98] text-white font-medium shadow-lg shadow-brand/30 disabled:opacity-50 disabled:pointer-events-none transition-all text-base"
           >
             {loading ? (
               <span>Verifica in corso...</span>
@@ -191,10 +191,6 @@ export function AuthGate({ onSuccess }: AuthGateProps) {
             )}
           </button>
         </form>
-
-        <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
-          Il profilo selezionato resterà collegato a questo dispositivo fino alla disconnessione.
-        </p>
       </div>
     </div>
   );

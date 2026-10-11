@@ -28,8 +28,8 @@ export function Navigation({ currentTab, onSelectTab, pendingCount = 0 }: Naviga
               key={tab.id}
               type="button"
               onClick={() => onSelectTab(tab.id)}
-              className={`flex flex-col items-center justify-center py-2 px-3 rounded-2xl transition-all relative border border-transparent outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 select-none active:scale-[0.98] ${isActive
-                  ? "bg-[#EEF2FF] dark:bg-indigo-950/60 text-[#0f766E] dark:text-indigo-400 font-semibold"
+              className={`flex flex-col items-center justify-center py-2 px-3 rounded-2xl transition-all relative border border-transparent outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 select-none active:scale-[0.98] ${isActive
+                  ? "bg-brand-light dark:bg-brand-darkBg text-brand dark:text-brand-dark font-semibold"
                   : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 font-medium"
                 }`}
             >

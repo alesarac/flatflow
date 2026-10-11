@@ -134,10 +134,10 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
           type="button"
           onClick={() => fetchItems(true)}
           disabled={loading || isRefreshing || pendingItemIds.size > 0}
-          className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-500 hover:text-slate-900 border border-slate-200/80 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200 active:scale-95 transition-all disabled:opacity-50 shadow-sm inline-flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="min-h-[44px] min-w-[44px] p-2.5 rounded-2xl bg-white dark:bg-slate-850/90 text-slate-500 hover:text-slate-900 border border-slate-200/80 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200 active:scale-95 transition-all disabled:opacity-50 shadow-sm inline-flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-brand"
           title="Aggiorna lista della spesa"
         >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-[#0f766E] dark:text-indigo-400" : ""}`} />
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-brand dark:text-brand-dark" : ""}`} />
         </button>
       </div>
 
@@ -164,7 +164,7 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
             onChange={(e) => setNewItemName(e.target.value)}
             placeholder="Aggiungi un elemento..."
             maxLength={80}
-            className="w-full min-h-[44px] bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-9 shadow-sm"
+            className="w-full min-h-[44px] bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-2xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all pr-9 shadow-sm"
           />
           {newItemName.length > 0 && (
             <button
@@ -181,7 +181,7 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
         <button
           type="submit"
           disabled={!newItemName.trim()}
-          className="min-h-[44px] min-w-[44px] w-11 h-11 rounded-2xl bg-[#0f766E] hover:bg-[#3847cf] active:scale-95 disabled:opacity-40 text-white flex items-center justify-center shrink-0 shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="min-h-[44px] min-w-[44px] w-11 h-11 rounded-2xl bg-brand hover:bg-brand-hover active:scale-95 disabled:opacity-40 text-white flex items-center justify-center shrink-0 shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-brand"
           title="Aggiungi prodotto"
         >
           <Plus className="w-5 h-5 stroke-[2.5]" />
@@ -191,12 +191,12 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
       {/* 3. Elenco prodotti */}
       {loading && items.length === 0 ? (
         <div className="py-12 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
-          <Loader2 className="w-5 h-5 text-[#0f766E] dark:text-indigo-400 animate-spin" />
+          <Loader2 className="w-5 h-5 text-brand dark:text-brand-dark animate-spin" />
           <span>Caricamento lista in corso...</span>
         </div>
       ) : items.length === 0 ? (
         <div className="py-12 text-center space-y-2 bg-white dark:bg-slate-850/90 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-sm">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 flex items-center justify-center mx-auto mb-2">
+          <div className="w-10 h-10 rounded-2xl bg-brand-light dark:bg-brand-darkBg text-brand dark:text-brand-dark flex items-center justify-center mx-auto mb-2">
             <ShoppingBag className="w-5 h-5" />
           </div>
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
@@ -247,10 +247,10 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
                             type="button"
                             onClick={() => handleToggle(item.id, true)}
                             disabled={isPending}
-                            className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95 transition-all disabled:opacity-50"
+                            className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand active:scale-95 transition-all disabled:opacity-50"
                             aria-label={`Segna ${item.name} come comprato`}
                           >
-                            <div className="w-5 h-5 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-[#0f766E] dark:hover:border-indigo-400 transition-colors flex items-center justify-center" />
+                            <div className="w-5 h-5 rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-brand dark:hover:border-brand-dark transition-colors flex items-center justify-center" />
                           </button>
 
                           {/* Nome e autore */}
@@ -314,10 +314,10 @@ export function ShoppingView({ roommates, myRoommateId }: ShoppingViewProps = {}
                             type="button"
                             onClick={() => handleToggle(item.id, false)}
                             disabled={isPending}
-                            className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95 transition-all disabled:opacity-50"
+                            className="min-h-[44px] min-w-[44px] -ml-2 -my-2 flex items-center justify-center shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand active:scale-95 transition-all disabled:opacity-50"
                             aria-label={`Riporta ${item.name} tra quelli da comprare`}
                           >
-                            <div className="w-5 h-5 rounded-lg bg-[#0f766E] dark:bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+                            <div className="w-5 h-5 rounded-lg bg-brand dark:bg-brand-hover flex items-center justify-center text-white shadow-sm">
                               <Check className="w-3.5 h-3.5 stroke-[3]" />
                             </div>
                           </button>

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "../lib/theme/ThemeContext";
+import { colors } from "../lib/theme/colors";
 
 export const metadata: Metadata = {
   title: "FlatLoop — Pulizie, spesa e turni",
@@ -28,7 +29,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0F766E",
+  themeColor: colors.brand.DEFAULT,
 };
 
 export default function RootLayout({
@@ -112,7 +113,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-indigo-500 selection:text-white transition-colors duration-200">
+      <body className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-brand selection:text-white transition-colors duration-200">
         <div className="mx-auto max-w-md min-h-screen flex flex-col relative shadow-2xl bg-white dark:bg-slate-900 border-x border-slate-200/80 dark:border-slate-800/80 transition-colors duration-200">
           <ThemeProvider>{children}</ThemeProvider>
         </div>

@@ -53,12 +53,12 @@ export function CleaningCard({
   // Stili e palette pastello specifici dello stato
   const getCardStyle = () => {
     if (task.isCompleted) {
-      return "bg-[#EAF9F1] border-[#C6EED8] dark:bg-emerald-950/20 dark:border-emerald-900/40";
+      return "bg-status-success-bg border-status-success-border dark:bg-status-success-darkBg dark:border-status-success-darkBorder";
     }
     if (isUnassigned) {
-      return "bg-[#FFFAE8] border-[#F5E9B7] dark:bg-amber-950/20 dark:border-amber-900/40";
+      return "bg-status-warning-bg border-status-warning-border dark:bg-status-warning-darkBg dark:border-status-warning-darkBorder";
     }
-    return "bg-[#EFF6FF] border-[#D9E7F5] dark:bg-blue-950/20 dark:border-blue-900/40";
+    return "bg-status-info-bg border-status-info-border dark:bg-status-info-darkBg dark:border-status-info-darkBorder";
   };
 
   const getIconStyle = () => {
@@ -174,7 +174,7 @@ export function CleaningCard({
                 onClick={() => onComplete(task.id)}
                 disabled={isSubmitting}
                 type="button"
-                className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl bg-[#365672] hover:bg-[#2c475e] active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+                className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl bg-action hover:bg-action-hover active:scale-[0.98] text-action-text font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -198,12 +198,12 @@ export function CleaningCard({
               onClick={() => onClaim(task.id, myRoommateId!)}
               disabled={isSubmitting}
               type="button"
-              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-[#EDF2F7] hover:bg-[#E2E8F0] active:scale-[0.98] text-[#365672] dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-action-secondary hover:bg-action-secondary-hover active:scale-[0.98] text-action-secondary-text dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Hand className="w-4 h-4 text-[#365672] dark:text-slate-300" />
+                <Hand className="w-4 h-4 text-action dark:text-slate-300" />
               )}
               <span>Me ne occupo io</span>
             </button>
