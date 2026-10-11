@@ -8,7 +8,7 @@ Questa guida fornisce le istruzioni passo-passo, adatte anche a un principiante,
 
 [Supabase](https://supabase.com) offre un database PostgreSQL ospitato sul cloud con un piano gratuito ideale per l'applicazione.
 
-### Passaggi:
+### Passaggi
 
 1. **Crea un account o accedi:**
 
@@ -53,6 +53,7 @@ FlatLoop non utilizza credenziali predefinite insicure: tutti i segreti devono e
 
    - Viene utilizzata dal server per firmare crittograficamente i cookie di sessione (HMAC-SHA256). Deve essere una stringa casuale di almeno 32 caratteri.
    - Puoi generarla rapidamente aprendo un terminale ed eseguendo questo comando:
+
      ```bash
      node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
      ```
@@ -71,6 +72,7 @@ Prima di pubblicare l'applicazione, è consigliabile eseguire un breve test in l
    ```bash
    cp .env.example .env.local
    ```
+
 2. **Configura i valori nel file `.env.local`:**
    Apri `.env.local` con un editor di testo e inserisci i parametri ottenuti nei passaggi precedenti:
 
@@ -80,11 +82,13 @@ Prima di pubblicare l'applicazione, è consigliabile eseguire un breve test in l
    NEXT_PUBLIC_SUPABASE_URL=https://<tuo-progetto-id>.supabase.co
    SUPABASE_SECRET_KEY=<LA_TUA_SECRET_KEY_sb_secret_OPPURE_service_role>
    ```
+
 3. **Avvia il server di sviluppo:**
 
    ```bash
    npm run dev
    ```
+
 4. **Verifica il funzionamento e la persistenza:**
 
    - Apri il browser all'indirizzo [http://localhost:3000](http://localhost:3000).
@@ -125,10 +129,10 @@ Prima di mettere l'app a disposizione dei coinquilini, è fondamentale verificar
 
 [Vercel](https://vercel.com) ospita applicazioni Next.js gratuitamente, con dominio HTTPS e certificato SSL gestito in automatico.
 
-### Passaggi:
+### Passaggi
 
 1. **Aggiorna il codice su GitHub:**
-   Il repository è già configurato con il remote `origin` (`alesarac/flatflow`). Assicurati che le tue modifiche locali siano committate e inviate a GitHub:
+   Il repository è già configurato con il remote `origin` (`alesarac/flatloop`). Assicurati che le tue modifiche locali siano committate e inviate a GitHub:
 
    ```bash
    git status
@@ -140,7 +144,7 @@ Prima di mettere l'app a disposizione dei coinquilini, è fondamentale verificar
 
    - Accedi a [vercel.com](https://vercel.com) con il tuo account GitHub.
    - Clicca su **«Add New...»** > **«Project»**.
-   - Seleziona il repository `flatflow` e clicca su **«Import»**.
+   - Seleziona il repository `flatloop` e clicca su **«Import»**.
 3. **Configura le Variabili d'Ambiente su Vercel:**
    Nella schermata di importazione, prima di premere *Deploy*, espandi la sezione **«Environment Variables»** e aggiungi le 4 variabili:
 
@@ -150,6 +154,7 @@ Prima di mettere l'app a disposizione dei coinquilini, è fondamentale verificar
    | `SESSION_SECRET`           | La stringa casuale di almeno 32 caratteri generata per la firma         |
    | `NEXT_PUBLIC_SUPABASE_URL` | L'URL del progetto Supabase (`https://<tuo-progetto-id>.supabase.co`) |
    | `SUPABASE_SECRET_KEY`      | La Secret API Key (`sb_secret_...` o chiave `service_role`)         |
+
 4. **Avvia il Deployment:**
 
    - Clicca su **«Deploy»**.
@@ -162,7 +167,7 @@ Prima di mettere l'app a disposizione dei coinquilini, è fondamentale verificar
 
 I piani gratuiti di Supabase e Vercel sono più che sufficienti per l'utilizzo da parte di 3 coinquilini:
 
-### Supabase (Free Tier):
+### Supabase (Free Tier)
 
 - **Richieste API:** **Illimitate**.
 - **Spazio Database:** fino a 500 MB di archiviazione PostgreSQL (l'intero storico di FlatLoop per diversi anni occupa meno di 5 MB).
@@ -172,7 +177,7 @@ I piani gratuiti di Supabase e Vercel sono più che sufficienti per l'utilizzo d
   3. Il database torna pienamente operativo in circa 1-2 minuti senza alcuna perdita di dati.
 - **Assenza di backup automatici:** il piano Free di Supabase **non include backup automatici programmati giornalieri (Point-in-time recovery)**. Se desideri fare una copia di salvataggio periodica dei dati, puoi esportare manualmente i contenuti dal menu Database della dashboard oppure tramite comando terminale con la CLI di Supabase (`supabase db dump`).
 
-### Vercel (Hobby Tier):
+### Vercel (Hobby Tier)
 
 - **Funzioni Serverless:** **1 milione di invocazioni al mese** (l'uso tipico di 3 coinquilini genera meno di 2.000 invocazioni mensili).
 - **Larghezza di banda:** 100 GB al mese.
@@ -182,19 +187,19 @@ I piani gratuiti di Supabase e Vercel sono più che sufficienti per l'utilizzo d
 
 ## 7. Come Utilizzare l'Applicazione tra Coinquilini
 
-### Primo Accesso da Smartphone:
+### Primo Accesso da Smartphone
 
 1. Condividi il link Vercel con i tuoi due coinquilini (es. tramite messaggio o chat di gruppo).
 2. All'apertura della pagina, ciascuno inserisce il **codice segreto della casa** (`HOUSE_SECRET_CODE`) e seleziona il proprio nome dall'elenco dei tre profili coinquilini caricati dal database.
 3. Il server verifica il codice e salva l'ID stabile del coinquilino (0, 1 o 2) nel cookie HTTP-only firmato (durata 1 anno). Il profilo resta fisso e vincolato al dispositivo: non è possibile scambiare profilo durante l'uso, garantendo che ogni coinquilino registri solo le proprie azioni.
 4. Per cambiare dispositivo o profilo, è sufficiente premere **«Esci»** nelle Impostazioni e accedere nuovamente.
 
-### Personalizzazione dei Nomi dei Coinquilini:
+### Personalizzazione dei Nomi dei Coinquilini
 
 - **Dall'applicazione:** nelle **Impostazioni**, ciascun coinquilino visualizza tutti e tre i nomi, ma può modificare esclusivamente il proprio.
 - **Da Supabase (consigliato per impostazione iniziale):** apri il file [`supabase/nomi-coinquilini.sql`](./supabase/nomi-coinquilini.sql), personalizza i tre nomi negli `UPDATE`, incollalo nel **SQL Editor** di Supabase e premi **«Run»**.
 
-### Installazione come PWA (Icona su Schermata Home):
+### Installazione come PWA (Icona su Schermata Home)
 
 Per utilizzare l'app a schermo intero senza barre di navigazione del browser:
 
@@ -208,7 +213,7 @@ Per utilizzare l'app a schermo intero senza barre di navigazione del browser:
   2. Tocca i tre puntini del menu in alto a destra.
   3. Seleziona **«Installa applicazione»** o **«Aggiungi a schermata Home»**.
 
-### Flusso delle Attività:
+### Flusso delle Attività
 
 - **Rotazione settimanale (Lunedì fuso orario italiano Europe/Rome):** Le pulizie delle tre aree (*Cucina*, *Bagno*, *Ingresso e corridoio*) ruotano automaticamente ogni lunedì a mezzanotte.
 - **Durante la settimana per le pulizie:**
@@ -229,7 +234,7 @@ Per utilizzare l'app a schermo intero senza barre di navigazione del browser:
 
 Durante la fase di test potresti voler ripulire il database e riportare FlatLoop allo stato di partenza, come se l'app fosse appena stata installata.
 
-### Dati eliminati e dati conservati:
+### Dati eliminati e dati conservati
 
 - **Cosa viene eliminato:**
   - Tutte le pulizie registrate (completate e incomplete).

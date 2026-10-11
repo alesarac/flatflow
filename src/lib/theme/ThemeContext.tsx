@@ -10,8 +10,8 @@ import {
   resolveTheme,
 } from "./solar";
 
-const THEME_MODE_KEY = "flatflow_theme_mode";
-const COORDS_KEY = "flatflow_coords";
+const THEME_MODE_KEY = "flatloop_theme_mode";
+const COORDS_KEY = "flatloop_coords";
 
 interface ThemeContextType {
   mode: ThemeMode;
@@ -124,7 +124,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setModeState(newMode);
     try {
       localStorage.setItem(THEME_MODE_KEY, newMode);
-    } catch {}
+    } catch { }
   }, []);
 
   // Richiesta esplicita della geolocalizzazione (SOLO su azione utente in Impostazioni)
@@ -151,7 +151,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           setCoords(newCoords);
           try {
             localStorage.setItem(COORDS_KEY, JSON.stringify(newCoords));
-          } catch {}
+          } catch { }
 
           const times = getSunTimes(
             new Date(),

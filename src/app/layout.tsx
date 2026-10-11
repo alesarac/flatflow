@@ -44,14 +44,14 @@ export default function RootLayout({
             __html: `
 (function() {
   try {
-    var mode = localStorage.getItem('flatflow_theme_mode') || 'auto';
+    var mode = localStorage.getItem('flatloop_theme_mode') || 'auto';
     var isDark = true;
     if (mode === 'light') {
       isDark = false;
     } else if (mode === 'dark') {
       isDark = true;
     } else {
-      var coordsStr = localStorage.getItem('flatflow_coords');
+      var coordsStr = localStorage.getItem('flatloop_coords');
       var now = new Date();
       var isDay = false;
       if (coordsStr) {

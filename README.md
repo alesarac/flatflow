@@ -70,20 +70,23 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
 1. **Clona il repository:**
 
    ```bash
-   git clone https://github.com/alesarac/flatflow.git
-   cd flatflow
+   git clone https://github.com/alesarac/flatloop.git
+   cd flatloop
    ```
+
 2. **Installa le dipendenze:**
 
    ```bash
    npm install
    ```
+
 3. **Crea il file delle variabili d'ambiente:**
    Copia `.env.example` in `.env.local`:
 
    ```bash
    cp .env.example .env.local
    ```
+
    Configura i valori obbligatori in `.env.local`:
    - `HOUSE_SECRET_CODE`: il codice segreto concordato per la casa.
    - `SESSION_SECRET`: stringa casuale di almeno 32 caratteri per la firma delle sessioni (es. generabile con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
@@ -93,12 +96,14 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
    ```bash
    npm run dev
    ```
+
    L'app sarà disponibile su [http://localhost:3000](http://localhost:3000). Accedi inserendo il codice della casa definito in `HOUSE_SECRET_CODE`.
 5. **Esegui i test automatizzati:**
 
    ```bash
    npm test
    ```
+
 6. **Compila la build di produzione:**
 
    ```bash
@@ -112,4 +117,3 @@ Sostituisce messaggi WhatsApp, note cartacee e accordi verbali con una semplice 
 Per le istruzioni dettagliate passo-passo su come creare il database Supabase, configurare le variabili d'ambiente, pubblicare l'app gratuitamente su Vercel e installarla su smartphone (iOS e Android), consulta:
 
 👉 **[GUIDA_CONFIGURAZIONE.md](./GUIDA_CONFIGURAZIONE.md)**
-
