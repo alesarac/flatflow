@@ -69,6 +69,7 @@ export default function HomePage() {
   const trashQueue = data?.trashQueue || [0, 1, 2];
 
   const activeRoommate = roommates.find((r) => r.id === myRoommateId);
+  const showHero = currentTab === "cleanings" && Boolean(currentWeek);
 
   // Calcolo delle attività pendenti assegnate all'utente attivo
   let pendingDutiesCount = 0;
@@ -83,22 +84,30 @@ export default function HomePage() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <Header activeRoommate={activeRoommate} />
+      <Header activeRoommate={activeRoommate} hero={showHero} />
 
       {error && (
-        <div className="mx-4 mt-3 p-3 bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-300 rounded-2xl text-xs border">
+        <div className="relative z-20 mx-4 mt-3 p-3 bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-300 rounded-2xl text-xs border">
           {error}
         </div>
       )}
 
-      <main className="flex-1 max-w-md mx-auto w-full pb-nav-safe">
+      <main
+        className={`flex-1 max-w-md mx-auto w-full pb-nav-safe ${
+          showHero ? "bg-[#f7faf9] dark:bg-slate-900" : ""
+        }`}
+      >
         {currentTab === "cleanings" && currentWeek && (
-          <div className="p-4 space-y-5">
-            {/* 1. Settimana corrente e progresso pulizie */}
-            <WeekProgressCard
-              weekKey={currentWeek.weekKey}
-              cleanings={currentWeek.cleanings}
-            />
+          <div className="relative">
+            {/* Riepilogo settimanale sovrapposto alla testata, senza cambiare i dati. */}
+            <div className={`relative z-10 px-4 ${error ? "mt-4" : "-mt-12"}`}>
+              <WeekProgressCard
+                weekKey={currentWeek.weekKey}
+                cleanings={currentWeek.cleanings}
+              />
+            </div>
+
+            <div className="space-y-6 px-4 pt-7 pb-4">
 
             {/* 2. Spazzatura */}
             <section className="space-y-2.5">
@@ -164,6 +173,7 @@ export default function HomePage() {
                 ))}
               </div>
             </section>
+            </div>
           </div>
         )}
 
