@@ -7,6 +7,7 @@ import {
   Sparkles,
   DoorOpen,
   Check,
+  CircleDot,
   CheckCircle2,
   AlertTriangle,
   Hand,
@@ -60,31 +61,19 @@ export function CleaningCard({
 
   const canClaim = isUnassigned && myRoommateId !== null && !canUndoDecline;
 
-  // Stili e palette pastello specifici dello stato
+  // Le superfici rimangono neutre; lo stato è segnalato dagli accenti.
   const getCardStyle = () => {
-    if (task.isCompleted) {
-      return "bg-status-success-bg border-status-success-border dark:bg-status-success-darkBg dark:border-status-success-darkBorder";
-    }
-    if (isUnassigned) {
-      return "bg-status-warning-bg border-status-warning-border dark:bg-status-warning-darkBg dark:border-status-warning-darkBorder";
-    }
-    return "bg-status-info-bg border-status-info-border dark:bg-status-info-darkBg dark:border-status-info-darkBorder";
+    if (task.isCompleted) return "border-emerald-200/70 dark:border-emerald-800/40";
+    if (isUnassigned) return "border-amber-200/80 dark:border-amber-800/50";
+    if (isAssignedToMe) return "border-teal-200/80 dark:border-teal-800/60";
+    return "border-slate-200/80 dark:border-slate-700/70";
   };
 
   const getIconStyle = () => {
-    if (task.isCompleted) {
-      return {
-        box: "bg-emerald-100/70 border-emerald-200/60 dark:bg-emerald-950/50 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400",
-      };
-    }
-    if (isUnassigned) {
-      return {
-        box: "bg-amber-100/70 border-amber-200/60 dark:bg-amber-950/50 dark:border-amber-800/40 text-amber-600 dark:text-amber-400",
-      };
-    }
-    return {
-      box: "bg-blue-100/70 border-blue-200/60 dark:bg-blue-950/50 dark:border-blue-800/40 text-blue-600 dark:text-blue-400",
-    };
+    if (task.isCompleted) return "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400";
+    if (isUnassigned) return "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400";
+    if (isAssignedToMe) return "bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300";
+    return "bg-slate-100 text-slate-500 dark:bg-slate-700/70 dark:text-slate-300";
   };
 
   const renderIcon = () => {
@@ -105,18 +94,18 @@ export function CleaningCard({
 
   return (
     <div
-      className={`rounded-2xl border shadow-sm p-4 transition-colors ${getCardStyle()}`}
+      className={`rounded-[22px] border bg-white p-4 shadow-[0_10px_28px_-22px_rgba(15,65,67,0.45)] transition-colors dark:bg-slate-800/95 dark:shadow-[0_12px_28px_-22px_rgba(0,0,0,0.85)] ${getCardStyle()}`}
     >
       {/* Intestazione compatta e coerente: icona a sinistra, titolo e descrizione accanto, elemento di stato a destra */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3.5 min-w-0 flex-1">
           <div
-            className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${iconStyle.box}`}
+            className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${iconStyle}`}
           >
             {renderIcon()}
           </div>
           <div className="min-w-0 flex-1 pt-0.5">
-            <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug break-normal">
+            <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug break-words">
               {area.name}
             </h3>
             {task.isCompleted ? (
@@ -126,7 +115,12 @@ export function CleaningCard({
                   {task.completedByName || "Coinquilino"}
                 </span>
               </p>
-            ) : !isUnassigned && !isAssignedToMe ? (
+            ) : isAssignedToMe ? (
+              <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300">
+                <CircleDot className="h-3.5 w-3.5" aria-hidden="true" />
+                Tocca a te
+              </p>
+            ) : !isUnassigned ? (
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-normal break-normal">
                 Tocca a{" "}
                 <span className="font-medium text-slate-700 dark:text-slate-300">
@@ -143,11 +137,12 @@ export function CleaningCard({
             <Check
               className="w-5 h-5 text-emerald-600 dark:text-emerald-400 stroke-[2.5]"
               aria-label="Completata"
+              role="img"
             />
           </div>
         ) : isUnassigned ? (
           <div className="flex items-center shrink-0 pt-0.5">
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/60 px-3 py-1 rounded-full shadow-sm">
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/80 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/50 dark:text-amber-300">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
               <span>Da coprire</span>
             </span>
@@ -197,14 +192,14 @@ export function CleaningCard({
 
       {/* Azioni disponibili per attività non completate */}
       {hasBottomActions && (
-        <div className="mt-3">
+        <div className="mt-3.5 border-t border-slate-100 pt-3.5 dark:border-slate-700/60">
           {isAssignedToMe ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onComplete(task.id)}
                 disabled={isSubmitting}
                 type="button"
-                className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl bg-action hover:bg-action-hover active:scale-[0.98] text-action-text font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
+                className="flex-1 min-h-[44px] py-2.5 px-3 rounded-xl bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -228,7 +223,7 @@ export function CleaningCard({
               onClick={() => onClaim(task.id, myRoommateId!)}
               disabled={isSubmitting}
               type="button"
-              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-action-secondary hover:bg-action-secondary-hover active:scale-[0.98] text-action-secondary-text dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
+              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-teal-50 hover:bg-teal-100 active:scale-[0.98] text-teal-800 dark:bg-teal-950/40 dark:hover:bg-teal-950/60 dark:text-teal-200 border border-teal-200 dark:border-teal-800/70 font-semibold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

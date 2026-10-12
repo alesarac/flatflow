@@ -42,46 +42,45 @@ export function TrashCard({
 
   const hasBottomActions = openTask ? isAssignedToMe || canClaim : canReport;
 
-  // Palette e stili pastello conformi allo stato
+  // Stato enfatizzato da icone e bordi, senza colorare l'intera scheda.
   const getCardStyle = () => {
-    if (openTask) {
-      if (isUnassigned) {
-        return "bg-status-warning-bg border-status-warning-border dark:bg-status-warning-darkBg dark:border-status-warning-darkBorder";
-      }
-      return "bg-status-danger-bg border-status-danger-border dark:bg-status-danger-darkBg dark:border-status-danger-darkBorder";
-    }
-    return "bg-white border-slate-200/80 dark:bg-slate-850/90 dark:border-slate-800";
+    if (isUnassigned) return "border-amber-200/80 dark:border-amber-800/50";
+    if (openTask) return "border-rose-200/80 dark:border-rose-800/40";
+    return "border-slate-200/80 dark:border-slate-700/70";
   };
 
-  const getIconColor = () => {
-    if (openTask) {
-      if (isUnassigned) return "text-amber-600 dark:text-amber-400";
-      return "text-rose-500 dark:text-rose-400";
-    }
-    return "text-slate-500 dark:text-slate-400";
+  const getIconStyle = () => {
+    if (isUnassigned) return "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400";
+    if (openTask) return "bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400";
+    return "bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300";
   };
 
   return (
     <div
-      className={`rounded-2xl border shadow-sm p-4 transition-colors ${getCardStyle()}`}
+      className={`rounded-[22px] border bg-white p-4 shadow-[0_10px_28px_-22px_rgba(15,65,67,0.45)] transition-colors dark:bg-slate-800/95 dark:shadow-[0_12px_28px_-22px_rgba(0,0,0,0.85)] ${getCardStyle()}`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <Trash2 className={`w-4 h-4 shrink-0 ${getIconColor()}`} />
-          <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm leading-tight truncate">
-            {openTask ? (
-              assignedRoommate ? (
-                <>Tocca a {assignedRoommate.name}</>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${getIconStyle()}`}>
+            <Trash2 className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-white">Spazzatura</h3>
+            <p className="mt-0.5 text-xs leading-normal text-slate-500 dark:text-slate-400 break-words">
+              {openTask ? (
+                assignedRoommate ? (
+                  isAssignedToMe ? "Tocca a te" : <>Tocca a <span className="font-medium text-slate-700 dark:text-slate-200">{assignedRoommate.name}</span></>
+                ) : (
+                  "Nessun incaricato"
+                )
               ) : (
-                <>Nessun incaricato</>
-              )
-            ) : (
-              <>Prossimo: {nextInQueue?.name || "In attesa"}</>
-            )}
-          </span>
+                <>Prossimo: <span className="font-medium text-slate-700 dark:text-slate-200">{nextInQueue?.name || "In attesa"}</span></>
+              )}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 pt-1">
           {openTask ? (
             isUnassigned ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800/60 px-2.5 py-0.5 rounded-full shadow-sm">
@@ -104,7 +103,7 @@ export function TrashCard({
 
       {/* Azioni disponibili per la spazzatura */}
       {hasBottomActions && (
-        <div className="mt-3.5">
+        <div className="mt-3.5 border-t border-slate-100 pt-3.5 dark:border-slate-700/60">
           {openTask ? (
             <div>
               {isAssignedToMe ? (
@@ -113,7 +112,7 @@ export function TrashCard({
                     onClick={() => onComplete(myRoommateId)}
                     disabled={isSubmitting}
                     type="button"
-                    className="flex-1 min-h-[44px] py-2.5 px-4 rounded-xl bg-action hover:bg-action-hover active:scale-[0.98] text-action-text font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
+                    className="flex-1 min-h-[44px] py-2.5 px-3 rounded-xl bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 active:scale-[0.98] text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                   >
                     {isSubmitting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -137,7 +136,7 @@ export function TrashCard({
                   onClick={() => onClaim(myRoommateId!)}
                   disabled={isSubmitting}
                   type="button"
-                  className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-action-secondary hover:bg-action-secondary-hover active:scale-[0.98] text-action-secondary-text dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold text-xs shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
+                  className="w-full min-h-[44px] py-2.5 px-4 rounded-xl bg-amber-50 hover:bg-amber-100 active:scale-[0.98] text-amber-900 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 dark:text-amber-200 border border-amber-200 dark:border-amber-800/70 font-semibold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -153,7 +152,7 @@ export function TrashCard({
               onClick={onReport}
               disabled={isSubmitting}
               type="button"
-              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400 font-semibold text-xs flex items-center justify-center gap-2 transition-colors active:scale-[0.98] disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+              className="w-full min-h-[44px] py-2.5 px-4 rounded-xl border border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-800 dark:bg-teal-950/40 dark:border-teal-800/70 dark:text-teal-200 font-semibold text-xs flex items-center justify-center gap-2 transition-colors active:scale-[0.98] disabled:opacity-50 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Segnala spazzatura piena</span>
