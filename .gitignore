@@ -14,11 +14,11 @@
 /build
 *.tsbuildinfo
 
-# Environment variables
+# Environment variables (keep public template tracked)
 .env
+.env.*
 .env*.local
-.env.production
-.env.development
+!.env.example
 
 # Debug / logs
 npm-debug.log*
@@ -27,10 +27,23 @@ yarn-error.log*
 .pnpm-debug.log*
 *.log
 
-# OS files
+# OS files and private certificates
 .DS_Store
-*.pem
 Thumbs.db
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local Vercel project metadata
+/.vercel/
+
+# Temporary database files and backup dumps
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+*.dump
 
 # Piano di sviluppo (solo locale - non includere nel repository)
 /plan/

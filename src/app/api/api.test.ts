@@ -1361,7 +1361,7 @@ describe("Profilo Univoco & Sicurezza Sessione Coinquilino", () => {
       new Request("http://localhost/api/house/roommates", {
         method: "POST",
         headers: authHeaders0,
-        body: JSON.stringify({ id: 0, name: "Alessandro" }),
+        body: JSON.stringify({ id: 0, name: "Utente A" }),
       })
     );
     expect(editOwnNameRes.status).toBe(200);
