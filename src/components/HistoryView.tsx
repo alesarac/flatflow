@@ -12,6 +12,10 @@ import {
   Loader2,
   ArrowDown,
   ArrowLeft,
+  CalendarDays,
+  CircleDot,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 interface WeekGroup {
@@ -202,10 +206,10 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
             </button>
           )}
           <div>
-            <h2 className="text-[19px] font-bold text-slate-900 dark:text-white leading-tight">
+            <h2 className="text-[22px] font-bold text-slate-900 dark:text-white leading-tight">
               Storico attività
             </h2>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Pulizie e spazzatura registrate
             </p>
           </div>
@@ -233,60 +237,72 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
           <span>Caricamento storico in corso...</span>
         </div>
       ) : history.length === 0 ? (
-        <div className="py-12 text-center space-y-2 bg-white dark:bg-slate-850/90 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Nessuna attività registrata</p>
+        <div className="py-10 text-center space-y-2 bg-white dark:bg-slate-800/95 rounded-[22px] border border-slate-200/80 dark:border-slate-700/70 px-6 shadow-[0_10px_28px_-22px_rgba(15,65,67,0.45)]">
+          <p className="text-sm font-bold text-slate-900 dark:text-white">Nessuna attività registrata</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Le attività registrate appariranno qui cronologicamente.
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {monthGroups.map((group) => (
-            <div key={group.monthKey} className="space-y-3.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-0.5 mt-2">
-                {group.monthLabel}
+            <section key={group.monthKey} className="space-y-4">
+              {/* Ogni mese è un blocco principale con intestazione ben distinguibile. */}
+              <h3 className="flex items-center gap-2.5 rounded-2xl bg-teal-50 px-3.5 py-3 text-sm font-bold tracking-wide text-teal-800 dark:bg-teal-950/50 dark:text-teal-200">
+                <CalendarDays className="h-4.5 w-4.5 shrink-0" aria-hidden="true" />
+                <span>{group.monthLabel}</span>
               </h3>
 
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {group.weeks.map((week) => (
-                  <div key={week.weekKey} className="space-y-2">
-                    <div className="flex items-center gap-2 px-1">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <section key={week.weekKey} className="space-y-2.5 border-l-2 border-teal-200/80 pl-3 dark:border-teal-800/70">
+                    {/* Le settimane sono sottogruppi del mese, con linea guida e separatore. */}
+                    <h4 className="flex items-center gap-2">
+                      <CircleDot className="h-3.5 w-3.5 shrink-0 text-teal-700 dark:text-teal-300" aria-hidden="true" />
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
                         {week.weekLabel}
                       </span>
-                      <div className="h-px flex-1 bg-slate-200/70 dark:bg-slate-800" />
-                    </div>
+                      <span className="h-px min-w-0 flex-1 bg-slate-200/80 dark:bg-slate-700/80" aria-hidden="true" />
+                    </h4>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       {week.items.map((item) => {
                         const badgeText = getBadgeText(item);
+                        const isCompleted = item.type === "trash" || item.status === "completed";
 
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center justify-between p-3.5 rounded-2xl border shadow-sm transition-colors bg-history-bg border-history-border dark:bg-history-darkBg/90 dark:border-history-darkBorder"
+                            className="rounded-[22px] border border-slate-200/80 bg-white p-3 shadow-[0_10px_28px_-22px_rgba(15,65,67,0.45)] transition-colors dark:border-slate-700/70 dark:bg-slate-800/95 dark:shadow-[0_12px_28px_-22px_rgba(0,0,0,0.85)]"
                           >
-                            <div className="flex items-center gap-3.5 min-w-0">
-                              <div className="w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-500 dark:text-slate-400">
-                                {renderItemIcon(item)}
+                            <div className="flex items-start justify-between gap-2.5">
+                              <div className="flex min-w-0 flex-1 items-start gap-3">
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
+                                  {renderItemIcon(item)}
+                                </div>
+                                <div className="min-w-0 flex-1 pt-0.5">
+                                  <div className="text-base font-bold leading-snug text-slate-900 break-words dark:text-white">
+                                    {getCleanTitle(item)}
+                                  </div>
+                                  <div className="mt-0.5 text-xs leading-normal text-slate-500 break-words dark:text-slate-400">
+                                    {item.personName}
+                                  </div>
+                                </div>
                               </div>
 
-                              <div className="min-w-0">
-                                <div className="font-bold text-slate-900 dark:text-white text-sm leading-tight truncate">
-                                  {getCleanTitle(item)}
+                              <div className="shrink-0 text-right pt-0.5">
+                                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                  {formatDate(item.date)}
                                 </div>
-                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                                  {item.personName}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="text-right shrink-0 pl-2">
-                              <div className="text-xs font-medium text-slate-400 dark:text-slate-400">
-                                {formatDate(item.date)}
-                              </div>
-                              <div className="mt-1">
-                                <span className="text-[11px] font-semibold border px-2.5 py-0.5 rounded-full inline-block shadow-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border-slate-200/90 dark:border-slate-700">
+                                <span className={`mt-1.5 inline-flex items-center justify-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${isCompleted
+                                  ? "border-emerald-200/80 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300"
+                                  : "border-amber-200/80 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/50 dark:text-amber-300"
+                                }`}>
+                                  {isCompleted ? (
+                                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                  ) : (
+                                    <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                                  )}
                                   {badgeText}
                                 </span>
                               </div>
@@ -295,10 +311,10 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
                         );
                       })}
                     </div>
-                  </div>
+                  </section>
                 ))}
               </div>
-            </div>
+            </section>
           ))}
 
           {hasMore && (
@@ -307,12 +323,12 @@ export function HistoryView({ onBack }: HistoryViewProps = {}) {
                 onClick={() => fetchHistory(history.length)}
                 disabled={loadingMore}
                 type="button"
-                className="min-h-[44px] py-2.5 px-5 rounded-xl bg-white hover:bg-slate-50 text-action dark:bg-slate-850/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold active:scale-95 transition-all inline-flex items-center gap-2 disabled:opacity-50 shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-action"
+                className="min-h-[44px] py-2.5 px-5 rounded-xl bg-white hover:bg-teal-50 text-teal-800 dark:bg-slate-800/95 dark:hover:bg-slate-700 dark:text-teal-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold active:scale-95 transition-all inline-flex items-center gap-2 disabled:opacity-50 shadow-sm outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
               >
                 {loadingMore ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <ArrowDown className="w-3.5 h-3.5 text-action dark:text-slate-300" />
+                  <ArrowDown className="w-3.5 h-3.5 text-teal-700 dark:text-teal-300" />
                 )}
                 <span>Carica altre attività</span>
               </button>
