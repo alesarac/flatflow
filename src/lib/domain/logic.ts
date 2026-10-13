@@ -1,7 +1,9 @@
 import { CleaningTask, Roommate, TrashTask } from "./types";
 
-// Anchor date: Lunedì 5 gennaio 2026 (Europe/Rome)
+// Anchor originario: preserva l'indice delle settimane precedenti al riavvio.
 const ANCHOR_MONDAY_UTC = Date.UTC(2026, 0, 5, 0, 0, 0);
+// Nuovo inizio del ciclo: lunedì 12 ottobre 2026, assegnazione aree 0 -> 0, 1 -> 1, 2 -> 2.
+const ROTATION_RESTART_MONDAY_UTC = Date.UTC(2026, 9, 12, 0, 0, 0);
 
 interface RomeCivilDate {
   year: number;
@@ -226,13 +228,19 @@ export function formatHistoryWeekLabel(weekKey: string): string {
 }
 
 /**
- * Calcola l'indice di rotazione da 0 a 2 per il ciclo fisso di 3 settimane.
+ * Calcola l'indice della rotazione su 3 settimane.
+ * Dal 12 ottobre 2026 il ciclo riparte da 0; le settimane precedenti
+ * conservano l'indice storico, senza modificare altri comportamenti.
  */
 export function getRotationWeekIndex(weekKey: string): number {
   const { monday } = parseWeekKey(weekKey);
   const mondayUtc = Date.UTC(monday.year, monday.month - 1, monday.day, 0, 0, 0);
   const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
-  const elapsedWeeks = Math.floor((mondayUtc - ANCHOR_MONDAY_UTC) / oneWeekMs);
+  const anchorUtc =
+    mondayUtc >= ROTATION_RESTART_MONDAY_UTC
+      ? ROTATION_RESTART_MONDAY_UTC
+      : ANCHOR_MONDAY_UTC;
+  const elapsedWeeks = Math.floor((mondayUtc - anchorUtc) / oneWeekMs);
   return ((elapsedWeeks % 3) + 3) % 3;
 }
 

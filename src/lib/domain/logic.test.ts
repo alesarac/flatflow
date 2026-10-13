@@ -94,6 +94,31 @@ describe("Europe/Rome Calendar & Week Helpers (P1-05)", () => {
 });
 
 describe("Weekly Cleaning 3-Week Rotation & Name Snapshots", () => {
+  it("restarts the rotation on 12 October 2026 for Matteo, Marilù and Alessandro", () => {
+    const roommates = [
+      { id: 0, name: "Matteo" },
+      { id: 1, name: "Marilù" },
+      { id: 2, name: "Alessandro" },
+    ];
+
+    expect(getRotationWeekIndex("2026-10-05")).toBe(0); // precedente ciclo invariato
+    expect(getRotationWeekIndex("2026-10-12")).toBe(0);
+    expect(getRotationWeekIndex("2026-10-19")).toBe(1);
+    expect(getRotationWeekIndex("2026-10-26")).toBe(2);
+    expect(getRotationWeekIndex("2026-11-02")).toBe(0);
+
+    const firstWeek = createWeekCleanings("2026-10-12", roommates);
+    expect(firstWeek.map((task) => task.assignedTo)).toEqual([0, 1, 2]);
+    expect(firstWeek.map((task) => task.assignedToName)).toEqual([
+      "Matteo", "Marilù", "Alessandro",
+    ]);
+
+    expect(createWeekCleanings("2026-10-19", roommates).map((task) => task.assignedTo))
+      .toEqual([1, 2, 0]);
+    expect(createWeekCleanings("2026-10-26", roommates).map((task) => task.assignedTo))
+      .toEqual([2, 0, 1]);
+  });
+
   it("follows the exact 3-week cyclical rotation and saves assignedToName snapshot", () => {
     const w0 = getRotationWeekIndex("2026-01-05");
     const w1 = getRotationWeekIndex("2026-01-12");
